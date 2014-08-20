@@ -49,7 +49,22 @@ use IO::Socket;
 use IO::Select;
 use Time::HiRes;
 
+use Color;
+use SetExtensions;
 
+my %dim_values = (
+   0 => "dim_00",
+   1 => "dim_10",
+   2 => "dim_20",
+   3 => "dim_30",
+   4 => "dim_40",
+   5 => "dim_50",
+   6 => "dim_60",
+   7 => "dim_70",
+   8 => "dim_80",
+   9 => "dim_90",
+  10 => "dim_100",
+);
 
 sub
 WifiLight_Initialize(@)
@@ -64,10 +79,29 @@ WifiLight_Initialize(@)
   $hash->{GetFn} = "WifiLight_Get";
   $hash->{AttrFn} = "WifiLight_Attr";
   $hash->{NotifyFn}  = "WifiLight_Notify";
-  $hash->{FW_summaryFn} = "WifiLight_FW_summary";
+  #$hash->{FW_summaryFn} = "WifiLight_FW_summary";
   $hash->{AttrList}     = "widget:0,1 gamma dimStep defaultColor";
 
+  FHEM_colorpickerInit();
+    
   return undef;
+}
+
+sub
+WifiLight_devStateIcon($)
+{
+  my($hash) = @_;
+  $hash = $defs{$hash} if( ref($hash) ne 'HASH' );
+
+  return undef if( !$hash );
+  return undef if( $hash->{helper}->{group} );
+
+  my $name = $hash->{NAME};
+
+  my $percent = ReadingsVal($name,"brightness","100");
+  my $s = $dim_values{int($percent/10)};
+
+  return ".*:light_light_$s@#".ReadingsVal($name, "RGB", "FFFFFF").":toggle"
 }
 
 sub
@@ -190,14 +224,14 @@ WifiLight_Define($$)
       $hash->{helper}->{llLock} = 0;
     }
   }
-  return "unknown connection type: choose one of bridge-V3:<ip> LW12:<ip>" if !(defined($hash->{CONNECTION})); 
+  return "unknown connection type: choose one of bridge-V2:<ip/FQDN>, bridge-V3:<ip/FQDN>, LW12:<ip/FQDN>" if !(defined($hash->{CONNECTION})); 
 
   Log3 ($hash, 4, "define $a[0] $a[1] $a[2] $a[3]");
 
   if (($hash->{LEDTYPE} eq 'RGB') && ($hash->{CONNECTION} =~ 'LW12'))
   {
     $hash->{helper}->{GAMMAMAP} = WifiLight_CreateGammaMapping($hash, 0.65);
-    $hash->{helper}->{COMMANDSET} = "on off dim dimup dimdown HSV RGB";
+    $hash->{helper}->{COMMANDSET} = "on off toggle dim dimup dimdown HSV rgb:colorpicker,RGB";
     return undef;
   }
 
@@ -207,7 +241,7 @@ WifiLight_Define($$)
     $hash->{SLOT} = 0;
     $hash->{helper}->{GAMMAMAP} = WifiLight_CreateGammaMapping($hash, 1);
     $hash->{helper}->{COLORMAP} = WifiLight_Milight_ColorConverter($hash);
-    $hash->{helper}->{COMMANDSET} = "on off dim dimup dimdown HSV RGB sync pair unpair";
+    $hash->{helper}->{COMMANDSET} = "on off toggle dim dimup dimdown HSV rgb:colorpicker,RGB sync pair unpair";
     #if we are allready paired: sync to get a defined state
     return WifiLight_RGB_Sync($hash) if ($hash->{LEDTYPE} eq 'RGB');
     return WifiLight_RGBW1_Sync($hash) if ($hash->{LEDTYPE} eq 'RGBW1');
@@ -223,9 +257,13 @@ WifiLight_Define($$)
     if ( grep { $i == $_ } 5..8 )
     { 
       $hash->{SLOT} = $i;
-      $hash->{helper}->{GAMMAMAP} = WifiLight_CreateGammaMapping($hash, 0.73);
+      #$hash->{helper}->{GAMMAMAP} = WifiLight_CreateGammaMapping($hash, 0.73);
+      $hash->{helper}->{GAMMAMAP} = WifiLight_CreateGammaMapping($hash, 1);
       $hash->{helper}->{COLORMAP} = WifiLight_Milight_ColorConverter($hash);
-      $hash->{helper}->{COMMANDSET} = "on off dim dimup dimdown HSV RGB sync pair unpair";
+      $hash->{helper}->{COMMANDSET} = "on off toggle dim:slider,0,7,100 dimup dimdown HSV rgb:colorpicker,RGB sync pair unpair";
+
+      $attr{$name}{devStateIcon} = '{(WifiLight_devStateIcon($name),"toggle")}' if( !defined( $attr{$name}{devStateIcon} ) );
+      $attr{$name}{webCmd} = 'rgb:rgb ff0000:rgb 00ff00:rgb 0000ff:toggle:on:off' if( !defined( $attr{$name}{webCmd} ) );
       return WifiLight_RGBW2_Sync($hash);
     }
     else
@@ -245,7 +283,7 @@ WifiLight_Define($$)
     { 
       $hash->{SLOT} = $i;
       $hash->{helper}->{GAMMAMAP} = WifiLight_CreateGammaMapping($hash, 0.8);
-      $hash->{helper}->{COMMANDSET} = "on off dim dimup dimdown sync pair unpair";
+      $hash->{helper}->{COMMANDSET} = "on off toggle dim dimup dimdown sync pair unpair";
       return WifiLight_White_Sync($hash);
     }
     else
@@ -265,171 +303,177 @@ WifiLight_Undef(@)
 sub
 WifiLight_Set(@)
 {
-  my ($ledDevice, $name, $cmd, @args) = @_;
-  my $cnt = @args;
+  my ($hash, $name, $cmd, @a) = @_;
+  my $cnt = @a;
   my $ramp = 0;
   my $flags = "";
   my $event = undef;
 
-  return "unknown command ($cmd): choose one of ".join(", ", $ledDevice->{helper}->{COMMANDSET}) if ($cmd eq "?"); 
-  return "unknown command ($cmd): choose one of ".$ledDevice->{helper}->{COMMANDSET} if not ( grep { $cmd eq $_ } split(" ", $ledDevice->{helper}->{COMMANDSET} ));
+  # Commands that map to other commands
+  if( $cmd eq "toggle" )
+  {
+    $cmd = ReadingsVal($name,"state","on") eq "off" ? "on" :"off";
+  }
 
+  # Commands
   if ($cmd eq 'pair')
   {
-    WifiLight_HighLevelCmdQueue_Clear($ledDevice);
-    if (defined($args[0]))
+    WifiLight_HighLevelCmdQueue_Clear($hash);
+    if (defined($a[0]))
     {
-      return "usage: set $name pair [seconds]" if ($args[0] !~ /^\d+$/);
-      $ramp = $args[0];
+      return "usage: set $name pair [seconds]" if ($a[0] !~ /^\d+$/);
+      $ramp = $a[0];
     }
-    return WifiLight_RGB_Pair($ledDevice, $ramp) if (($ledDevice->{LEDTYPE} eq 'RGB') && ($ledDevice->{CONNECTION} =~ 'bridge-V[2|3]'));
-    return WifiLight_RGBW1_Pair($ledDevice, $ramp) if ($ledDevice->{LEDTYPE} eq 'RGBW1');
-    return WifiLight_RGBW2_Pair($ledDevice, $ramp) if ($ledDevice->{LEDTYPE} eq 'RGBW2');
-    return WifiLight_White_Pair($ledDevice, $ramp) if ($ledDevice->{LEDTYPE} eq 'White');
+    return WifiLight_RGB_Pair($hash, $ramp) if (($hash->{LEDTYPE} eq 'RGB') && ($hash->{CONNECTION} =~ 'bridge-V[2|3]'));
+    return WifiLight_RGBW1_Pair($hash, $ramp) if ($hash->{LEDTYPE} eq 'RGBW1');
+    return WifiLight_RGBW2_Pair($hash, $ramp) if ($hash->{LEDTYPE} eq 'RGBW2');
+    return WifiLight_White_Pair($hash, $ramp) if ($hash->{LEDTYPE} eq 'White');
   }
 
-  if ($cmd eq 'unpair')
+  elsif ($cmd eq 'unpair')
   {
-    WifiLight_HighLevelCmdQueue_Clear($ledDevice);
-    if (defined($args[0]))
+    WifiLight_HighLevelCmdQueue_Clear($hash);
+    if (defined($a[0]))
     {
-      return "usage: set $name unpair [seconds]" if ($args[0] !~ /^\d+$/);
-      $ramp = $args[0];
+      return "usage: set $name unpair [seconds]" if ($a[0] !~ /^\d+$/);
+      $ramp = $a[0];
     }
-    return WifiLight_RGB_UnPair($ledDevice, $ramp) if (($ledDevice->{LEDTYPE} eq 'RGB') && ($ledDevice->{CONNECTION} =~ 'bridge-V[2|3]'));
-    return WifiLight_RGBW1_UnPair($ledDevice, $ramp) if ($ledDevice->{LEDTYPE} eq 'RGBW1');
-    return WifiLight_RGBW2_UnPair($ledDevice, $ramp) if ($ledDevice->{LEDTYPE} eq 'RGBW2');
-    return WifiLight_White_UnPair($ledDevice, $ramp) if ($ledDevice->{LEDTYPE} eq 'White');
+    return WifiLight_RGB_UnPair($hash, $ramp) if (($hash->{LEDTYPE} eq 'RGB') && ($hash->{CONNECTION} =~ 'bridge-V[2|3]'));
+    return WifiLight_RGBW1_UnPair($hash, $ramp) if ($hash->{LEDTYPE} eq 'RGBW1');
+    return WifiLight_RGBW2_UnPair($hash, $ramp) if ($hash->{LEDTYPE} eq 'RGBW2');
+    return WifiLight_White_UnPair($hash, $ramp) if ($hash->{LEDTYPE} eq 'White');
   }
 
-  if ($cmd eq 'sync')
+  elsif ($cmd eq 'sync')
   {
-    WifiLight_HighLevelCmdQueue_Clear($ledDevice);
-    return WifiLight_RGB_Sync($ledDevice) if (($ledDevice->{LEDTYPE} eq 'RGB') && ($ledDevice->{CONNECTION} =~ 'bridge-V[2|3]'));
-    return WifiLight_RGBW1_Sync($ledDevice) if ($ledDevice->{LEDTYPE} eq 'RGBW1');
-    return WifiLight_RGBW2_Sync($ledDevice) if ($ledDevice->{LEDTYPE} eq 'RGBW2');
-    return WifiLight_White_Sync($ledDevice) if ($ledDevice->{LEDTYPE} eq 'White');
+    WifiLight_HighLevelCmdQueue_Clear($hash);
+    return WifiLight_RGB_Sync($hash) if (($hash->{LEDTYPE} eq 'RGB') && ($hash->{CONNECTION} =~ 'bridge-V[2|3]'));
+    return WifiLight_RGBW1_Sync($hash) if ($hash->{LEDTYPE} eq 'RGBW1');
+    return WifiLight_RGBW2_Sync($hash) if ($hash->{LEDTYPE} eq 'RGBW2');
+    return WifiLight_White_Sync($hash) if ($hash->{LEDTYPE} eq 'White');
   }
 
-  if ($cmd eq 'on')
+  elsif ($cmd eq 'on')
   {
-    WifiLight_HighLevelCmdQueue_Clear($ledDevice);
-    if (defined($args[0]))
+    WifiLight_HighLevelCmdQueue_Clear($hash);
+    if (defined($a[0]))
     {
-      return "usage: set $name on [seconds]" if ($args[0] !~ /^\d+$/);
-      $ramp = $args[0];
+      return "usage: set $name on [seconds]" if ($a[0] !~ /^\d+$/);
+      $ramp = $a[0];
     }
-    return WifiLight_RGBLW12_On($ledDevice, $ramp) if (($ledDevice->{LEDTYPE} eq 'RGB') && ($ledDevice->{CONNECTION} eq 'LW12'));
-    return WifiLight_RGB_On($ledDevice, $ramp) if (($ledDevice->{LEDTYPE} eq 'RGB') && ($ledDevice->{CONNECTION} =~ 'bridge-V[2|3]'));
-    return WifiLight_RGBW1_On($ledDevice, $ramp) if ($ledDevice->{LEDTYPE} eq 'RGBW1');
-    return WifiLight_RGBW2_On($ledDevice, $ramp) if ($ledDevice->{LEDTYPE} eq 'RGBW2');
-    return WifiLight_White_On($ledDevice, $ramp) if ($ledDevice->{LEDTYPE} eq 'White');
+    return WifiLight_RGBLW12_On($hash, $ramp) if (($hash->{LEDTYPE} eq 'RGB') && ($hash->{CONNECTION} eq 'LW12'));
+    return WifiLight_RGB_On($hash, $ramp) if (($hash->{LEDTYPE} eq 'RGB') && ($hash->{CONNECTION} =~ 'bridge-V[2|3]'));
+    return WifiLight_RGBW1_On($hash, $ramp) if ($hash->{LEDTYPE} eq 'RGBW1');
+    return WifiLight_RGBW2_On($hash, $ramp) if ($hash->{LEDTYPE} eq 'RGBW2');
+    return WifiLight_White_On($hash, $ramp) if ($hash->{LEDTYPE} eq 'White');
   }
 
-  if ($cmd eq 'off')
+  elsif ($cmd eq 'off')
   {
-    WifiLight_HighLevelCmdQueue_Clear($ledDevice);
-    if (defined($args[0]))
+    WifiLight_HighLevelCmdQueue_Clear($hash);
+    if (defined($a[0]))
     {
-      return "usage: set $name off [seconds]" if ($args[0] !~ /^\d+$/);
-      $ramp = $args[0];
+      return "usage: set $name off [seconds]" if ($a[0] !~ /^\d+$/);
+      $ramp = $a[0];
     }
-    return WifiLight_RGBLW12_Off($ledDevice, $ramp) if (($ledDevice->{LEDTYPE} eq 'RGB') && ($ledDevice->{CONNECTION} eq 'LW12'));
-    return WifiLight_RGB_Off($ledDevice, $ramp) if (($ledDevice->{LEDTYPE} eq 'RGB') && ($ledDevice->{CONNECTION} =~ 'bridge-V[2|3]'));
-    return WifiLight_RGBW1_Off($ledDevice, $ramp) if ($ledDevice->{LEDTYPE} eq 'RGBW1');
-    return WifiLight_RGBW2_Off($ledDevice, $ramp) if ($ledDevice->{LEDTYPE} eq 'RGBW2');
-    return WifiLight_White_Off($ledDevice, $ramp) if ($ledDevice->{LEDTYPE} eq 'White');
+    return WifiLight_RGBLW12_Off($hash, $ramp) if (($hash->{LEDTYPE} eq 'RGB') && ($hash->{CONNECTION} eq 'LW12'));
+    return WifiLight_RGB_Off($hash, $ramp) if (($hash->{LEDTYPE} eq 'RGB') && ($hash->{CONNECTION} =~ 'bridge-V[2|3]'));
+    return WifiLight_RGBW1_Off($hash, $ramp) if ($hash->{LEDTYPE} eq 'RGBW1');
+    return WifiLight_RGBW2_Off($hash, $ramp) if ($hash->{LEDTYPE} eq 'RGBW2');
+    return WifiLight_White_Off($hash, $ramp) if ($hash->{LEDTYPE} eq 'White');
   }
 
-  if ($cmd eq 'dimup')
+  elsif ($cmd eq 'dimup')
   {
-    return "usage: set $name dimup" if (defined($args[1]));
-    WifiLight_HighLevelCmdQueue_Clear($ledDevice);
-    my $v = ReadingsVal($ledDevice->{NAME}, "brightness", 0) + AttrVal($ledDevice->{NAME}, "dimStep", 7);
+    return "usage: set $name dimup" if (defined($a[1]));
+    WifiLight_HighLevelCmdQueue_Clear($hash);
+    my $v = ReadingsVal($hash->{NAME}, "brightness", 0) + AttrVal($hash->{NAME}, "dimStep", 7);
     $v = 100 if $v > 100;
-    return WifiLight_RGBLW12_Dim($ledDevice, $v, 0, '') if (($ledDevice->{LEDTYPE} eq 'RGB') && ($ledDevice->{CONNECTION} eq 'LW12'));
-    return WifiLight_RGB_Dim($ledDevice, $v, 0, '') if (($ledDevice->{LEDTYPE} eq 'RGB') && ($ledDevice->{CONNECTION} =~ 'bridge-V[2|3]'));
-    return WifiLight_RGBW1_Dim($ledDevice, $v, 0, '') if ($ledDevice->{LEDTYPE} eq 'RGBW1');
-    return WifiLight_RGBW2_Dim($ledDevice, $v, 0, '') if ($ledDevice->{LEDTYPE} eq 'RGBW2');
-    return WifiLight_White_Dim($ledDevice, $v, 0, '') if ($ledDevice->{LEDTYPE} eq 'White');
+    return WifiLight_RGBLW12_Dim($hash, $v, 0, '') if (($hash->{LEDTYPE} eq 'RGB') && ($hash->{CONNECTION} eq 'LW12'));
+    return WifiLight_RGB_Dim($hash, $v, 0, '') if (($hash->{LEDTYPE} eq 'RGB') && ($hash->{CONNECTION} =~ 'bridge-V[2|3]'));
+    return WifiLight_RGBW1_Dim($hash, $v, 0, '') if ($hash->{LEDTYPE} eq 'RGBW1');
+    return WifiLight_RGBW2_Dim($hash, $v, 0, '') if ($hash->{LEDTYPE} eq 'RGBW2');
+    return WifiLight_White_Dim($hash, $v, 0, '') if ($hash->{LEDTYPE} eq 'White');
   }
 
-  if ($cmd eq 'dimdown')
+  elsif ($cmd eq 'dimdown')
   {
-    return "usage: set $name dimdown" if (defined($args[1]));
-    WifiLight_HighLevelCmdQueue_Clear($ledDevice);
-    my $v = ReadingsVal($ledDevice->{NAME}, "brightness", 0) - AttrVal($ledDevice->{NAME}, "dimStep", 7);
+    return "usage: set $name dimdown" if (defined($a[1]));
+    WifiLight_HighLevelCmdQueue_Clear($hash);
+    my $v = ReadingsVal($hash->{NAME}, "brightness", 0) - AttrVal($hash->{NAME}, "dimStep", 7);
     $v = 0 if $v < 0;
-    return WifiLight_RGBLW12_Dim($ledDevice, $v, 0, '') if (($ledDevice->{LEDTYPE} eq 'RGB') && ($ledDevice->{CONNECTION} eq 'LW12'));
-    return WifiLight_RGB_Dim($ledDevice, $v, 0, '') if (($ledDevice->{LEDTYPE} eq 'RGB') && ($ledDevice->{CONNECTION} =~ 'bridge-V[2|3]'));
-    return WifiLight_RGBW1_Dim($ledDevice, $v, 0, '') if ($ledDevice->{LEDTYPE} eq 'RGBW1');
-    return WifiLight_RGBW2_Dim($ledDevice, $v, 0, '') if ($ledDevice->{LEDTYPE} eq 'RGBW2');
-    return WifiLight_White_Dim($ledDevice, $v, 0, '') if ($ledDevice->{LEDTYPE} eq 'White');
+    return WifiLight_RGBLW12_Dim($hash, $v, 0, '') if (($hash->{LEDTYPE} eq 'RGB') && ($hash->{CONNECTION} eq 'LW12'));
+    return WifiLight_RGB_Dim($hash, $v, 0, '') if (($hash->{LEDTYPE} eq 'RGB') && ($hash->{CONNECTION} =~ 'bridge-V[2|3]'));
+    return WifiLight_RGBW1_Dim($hash, $v, 0, '') if ($hash->{LEDTYPE} eq 'RGBW1');
+    return WifiLight_RGBW2_Dim($hash, $v, 0, '') if ($hash->{LEDTYPE} eq 'RGBW2');
+    return WifiLight_White_Dim($hash, $v, 0, '') if ($hash->{LEDTYPE} eq 'White');
   }
 
-  if ($cmd eq 'dim')
+  elsif ($cmd eq 'dim')
   {
-    return "usage: set $name dim level [seconds]" if ($args[0] !~ /^\d+$/);
-    return "usage: set $name dim level [seconds]" if !($args[0] ~~ [0..100]);
-    if (defined($args[1]))
+    return "usage: set $name dim level [percent]" if ($a[0] !~ /^\d+$/);
+    return "usage: set $name dim level [percent]" if !($a[0] ~~ [0..100]);
+    if (defined($a[1]))
     {
-      return "usage: set $name dim level [seconds] [q]" if ($args[1] !~ /^\d+$/);
-      $ramp = $args[1];
+      return "usage: set $name dim level [seconds] [q]" if ($a[1] !~ /^\d+$/);
+      $ramp = $a[1];
     }
-    if (defined($args[2]))
+    if (defined($a[2]))
     {   
-      return "usage: set $name dim level seconds [q]" if ($args[2] !~ m/.*[qQ].*/);
-      $flags = $args[2];
+      return "usage: set $name dim level seconds [q]" if ($a[2] !~ m/.*[qQ].*/);
+      $flags = $a[2];
     }
-    WifiLight_HighLevelCmdQueue_Clear($ledDevice) if ($flags !~ m/.*[qQ].*/);
-    return WifiLight_RGBLW12_Dim($ledDevice, $args[0], $ramp, $flags) if (($ledDevice->{LEDTYPE} eq 'RGB') && ($ledDevice->{CONNECTION} eq 'LW12'));
-    return WifiLight_RGB_Dim($ledDevice, $args[0], $ramp, $flags) if (($ledDevice->{LEDTYPE} eq 'RGB') && ($ledDevice->{CONNECTION} =~ 'bridge-V[2|3]'));
-    return WifiLight_RGBW1_Dim($ledDevice, $args[0], $ramp, $flags) if ($ledDevice->{LEDTYPE} eq 'RGBW1');
-    return WifiLight_RGBW2_Dim($ledDevice, $args[0], $ramp, $flags) if ($ledDevice->{LEDTYPE} eq 'RGBW2');
-    return WifiLight_White_Dim($ledDevice, $args[0], $ramp, $flags) if ($ledDevice->{LEDTYPE} eq 'White');
+    WifiLight_HighLevelCmdQueue_Clear($hash) if ($flags !~ m/.*[qQ].*/);
+    return WifiLight_RGBLW12_Dim($hash, $a[0], $ramp, $flags) if (($hash->{LEDTYPE} eq 'RGB') && ($hash->{CONNECTION} eq 'LW12'));
+    return WifiLight_RGB_Dim($hash, $a[0], $ramp, $flags) if (($hash->{LEDTYPE} eq 'RGB') && ($hash->{CONNECTION} =~ 'bridge-V[2|3]'));
+    return WifiLight_RGBW1_Dim($hash, $a[0], $ramp, $flags) if ($hash->{LEDTYPE} eq 'RGBW1');
+    return WifiLight_RGBW2_Dim($hash, $a[0], $ramp, $flags) if ($hash->{LEDTYPE} eq 'RGBW2');
+    return WifiLight_White_Dim($hash, $a[0], $ramp, $flags) if ($hash->{LEDTYPE} eq 'White');
   }
 
-  if (($cmd eq 'HSV') || ($cmd eq 'RGB'))
+  elsif (($cmd eq 'HSV') || ($cmd eq 'rgb'))
   {
     my ($hue, $sat, $val);
     
     if ($cmd eq 'HSV')
     {
-      return "HSV is required as h,s,v" if ($args[0] !~ /^\d{1,3},\d{1,3},\d{1,3}$/);
-      ($hue, $sat, $val) = split(',', $args[0]);
+      return "HSV is required as h,s,v" if ($a[0] !~ /^\d{1,3},\d{1,3},\d{1,3}$/);
+      ($hue, $sat, $val) = split(',', $a[0]);
       return "wrong hue ($hue): valid range 0..360" if !(($hue >= 0) && ($hue <= 360));
       return "wrong saturation ($sat): valid range 0..100" if !(($sat >= 0) && ($sat <= 100));
       return "wrong brightness ($val): valid range 0..100" if !(($val >= 0) && ($val <= 100));
     }
-    elsif ($cmd eq 'RGB')
+    elsif ($cmd eq 'rgb')
     {
-      return "RGB is required hex RRGGBB" if ($args[0] !~ /^[0-9A-Fa-f]{6}$/);
-      ($hue, $sat, $val) = WifiLight_RGB2HSV($ledDevice, $args[0]);
+      return "rgb is required hex RRGGBB" if ($a[0] !~ /^[0-9A-Fa-f]{6}$/);
+      ($hue, $sat, $val) = WifiLight_RGB2HSV($hash, $a[0]);
     }
     
-    if (defined($args[1]))
+    if (defined($a[1]))
     {
-      return "usage: set $name HSV H,S,V seconds flags programm" if ($args[1] !~ /^\d+$/);
-      $ramp = $args[1];
+      return "usage: set $name HSV H,S,V seconds flags programm" if ($a[1] !~ /^\d+$/);
+      $ramp = $a[1];
     }
-    if (defined($args[2]))
+    if (defined($a[2]))
     {   
-      return "usage: set $name HSV H,S,V seconds [slq] programm" if ($args[2] !~ m/.*[sSlLqQ].*/);
-      $flags = $args[2];
+      return "usage: set $name HSV H,S,V seconds [slq] programm" if ($a[2] !~ m/.*[sSlLqQ].*/);
+      $flags = $a[2];
     }
-    if (defined($args[3]))
+    if (defined($a[3]))
     {   
-      return "usage: set $name HSV H,S,V seconds flags programm=[A-Za-z_0-9]" if ($args[3] !~ m/[A-Za-z_0-9]*/);
-      $event = $args[3];
+      return "usage: set $name HSV H,S,V seconds flags programm=[A-Za-z_0-9]" if ($a[3] !~ m/[A-Za-z_0-9]*/);
+      $event = $a[3];
     }
-    WifiLight_HighLevelCmdQueue_Clear($ledDevice) if ($flags !~ m/.*[qQ].*/);
-    WifiLight_HSV_Transition($ledDevice, $hue, $sat, $val, $ramp, $flags, 50, $event) if (($ledDevice->{LEDTYPE} eq 'RGB') && ($ledDevice->{CONNECTION} eq 'LW12'));
-    WifiLight_HSV_Transition($ledDevice, $hue, $sat, $val, $ramp, $flags, 500, $event) if (($ledDevice->{LEDTYPE} eq 'RGB') && ($ledDevice->{CONNECTION} =~ 'bridge-V[2|3]'));
-    WifiLight_HSV_Transition($ledDevice, $hue, $sat, $val, $ramp, $flags, 500, $event) if (($ledDevice->{LEDTYPE} eq 'RGBW1') && ($ramp > 30));
-    WifiLight_HSV_Transition($ledDevice, $hue, $sat, $val, $ramp, $flags, 1000, $event) if (($ledDevice->{LEDTYPE} eq 'RGBW1') && ($ramp <= 30));
-    WifiLight_HSV_Transition($ledDevice, $hue, $sat, $val, $ramp, $flags, 200, $event) if ($ledDevice->{LEDTYPE} eq 'RGBW2');
-    return WifiLight_SetHSV_Target($ledDevice, $hue, $sat, $val);
+    WifiLight_HighLevelCmdQueue_Clear($hash) if ($flags !~ m/.*[qQ].*/);
+    WifiLight_HSV_Transition($hash, $hue, $sat, $val, $ramp, $flags, 50, $event) if (($hash->{LEDTYPE} eq 'RGB') && ($hash->{CONNECTION} eq 'LW12'));
+    WifiLight_HSV_Transition($hash, $hue, $sat, $val, $ramp, $flags, 500, $event) if (($hash->{LEDTYPE} eq 'RGB') && ($hash->{CONNECTION} =~ 'bridge-V[2|3]'));
+    WifiLight_HSV_Transition($hash, $hue, $sat, $val, $ramp, $flags, 500, $event) if (($hash->{LEDTYPE} eq 'RGBW1') && ($ramp > 30));
+    WifiLight_HSV_Transition($hash, $hue, $sat, $val, $ramp, $flags, 1000, $event) if (($hash->{LEDTYPE} eq 'RGBW1') && ($ramp <= 30));
+    WifiLight_HSV_Transition($hash, $hue, $sat, $val, $ramp, $flags, 200, $event) if ($hash->{LEDTYPE} eq 'RGBW2');
+    return WifiLight_SetHSV_Target($hash, $hue, $sat, $val);
   }
+
+  return SetExtensions($hash, $hash->{helper}->{COMMANDSET}, $name, $cmd, @a);
 }
 
 sub
@@ -1127,19 +1171,31 @@ sub
 WifiLight_RGBW2_On(@)
 {
   my ($ledDevice, $ramp) = @_;
-  my ($h, $s, $v) = split(',', AttrVal($ledDevice->{NAME}, "defaultColor", "0,0,100"));
-  Log3 ($ledDevice, 3, "$ledDevice->{NAME} RGBW2 slot $ledDevice->{SLOT} set on ($h, $s, $v) $ramp"); 
-  return WifiLight_HSV_Transition($ledDevice, $h, $s, $v, $ramp, '', 200, undef);
+  Log3 ($ledDevice, 3, "$ledDevice->{NAME} RGBW2 slot $ledDevice->{SLOT} set on $ramp");
+  # Switch on with same brightness it was switched off with, or max if undefined.
+  my $v = 100;
+  if (ReadingsVal($ledDevice->{NAME}, "brightness_on", 100) > 7)
+  {
+    Log3 ($ledDevice, 3, "$ledDevice->{NAME} brightness_on $v");
+  }
+
+  return WifiLight_RGBW2_Dim($ledDevice, $v, $ramp, ''); 
 }
 
 sub
 WifiLight_RGBW2_Off(@)
 {
   my ($ledDevice, $ramp) = @_;
-  Log3 ($ledDevice, 3, "$ledDevice->{NAME} RGBW2 slot $ledDevice->{SLOT} set off $ramp");
-  return WifiLight_RGBW2_Dim($ledDevice, 0, $ramp, '');
-  #TODO remove if tested
-  #return WifiLight_HSV_Transition($ledDevice, 0, 0, 0, $ramp, undef, 500, undef);
+  # Store value of brightness before turning off
+  if (ReadingsVal($ledDevice->{NAME}, "state", "off") eq "on")
+  {
+    readingsBeginUpdate($ledDevice);
+    readingsBulkUpdate($ledDevice, "brightness_on", ReadingsVal($ledDevice->{NAME}, "brightness", 100));
+    readingsEndUpdate($ledDevice, 0);
+    Log3 ($ledDevice, 3, "$ledDevice->{NAME} RGBW2 slot $ledDevice->{SLOT} set off $ramp");
+    return WifiLight_RGBW2_Dim($ledDevice, 0, $ramp, '');
+  }
+  return undef;
 }
 
 sub
@@ -1546,12 +1602,13 @@ WifiLight_SetHSV_Target(@)
 sub
 WifiLight_setHSV_Readings(@)
 {
-  my ($ledDevice, $hue, $sat, $val) = @_;
+  my ($ledDevice, $hue, $sat, $val, $val_on) = @_;
   my ($r, $g, $b) = WifiLight_HSV2RGB($hue, $sat, $val);
   readingsBeginUpdate($ledDevice);
   readingsBulkUpdate($ledDevice, "hue", $hue % 360);
   readingsBulkUpdate($ledDevice, "saturation", $sat);
   readingsBulkUpdate($ledDevice, "brightness", $val);
+  readingsBulkUpdate($ledDevice, "brightness_on", $val_on);
   readingsBulkUpdate($ledDevice, "RGB", sprintf("%02X%02X%02X",$r,$g,$b));
   readingsBulkUpdate($ledDevice, "state", "on") if ($val > 0);
   readingsBulkUpdate($ledDevice, "state", "off") if ($val == 0);
@@ -1966,349 +2023,5 @@ WifiLight_LowLevelCmdQueue_Send(@)
   InternalTimer(gettimeofday()+$msec, "WifiLight_LowLevelCmdQueue_Send", $ledDevice, 0);
   return undef;
 }
-
-###############################################################################
-#
-# FHEM web section
-# 
-#
-###############################################################################
-
-sub
-WifiLight_FW_summary(@)
-{
-  my ($FW_wname, $d, $FW_room, $pageData) = @_;
-  Log3 (undef, 5, "fw summary $FW_wname, $d, $FW_room"); 
-
-  my $h = ReadingsVal($d, "hue", 0);
-  my $s = ReadingsVal($d, "saturation", 0);
-  my $v = ReadingsVal($d, "brightness", 0);
-  my ($r, $g, $b) = WifiLight_HSV2RGB($h, $s, $v);
-
-  my $result = <<"END";
-  \n
-  <script language="JavaScript">
-    window.addEventListener("load", $d\_widgetInit(), false);
- 
-    function $d\_widgetInit()
-    {
-      if (typeof window.rawDataSrc=="undefined") 
-      {
-        window.rawDataSrcDispatcher = [];
-        window.rawDataSrcDispatcherFn = function()
-        {
-          for (var i=0; i < window.rawDataSrcDispatcher.length; i++)
-          {
-            window.rawDataSrcDispatcher[i]();
-          }
-        }
-        window.rawDataSrc = new XMLHttpRequest();
-        window.rawDataSrc.addEventListener("progress", window.rawDataSrcDispatcherFn, true);
-        window.rawDataSrc.open("GET", "$FW_ME?XHR=1&inform=type=raw;filter=room=all&timestamp="+new Date().getTime());
-        setTimeout(function() {window.rawDataSrc.send();}, 350);
-      }
-      //document.getElementById("$d\_state").parsedLines = -1;
-      //document.getElementById("$d\_state_icon").setState($h, $s, $v, $r, $g, $b);
-      window.addEventListener("mousedown", $d\_widgetCtrl, false);
-      window.addEventListener("touchstart", $d\_widgetCtrl, false);
-    }
-    
-    function $d\_widgetCtrl(e)
-    {
-      e = e ? e : window.event;
-      if (String(e.target.id).substring(0, String("$d").length) != "$d") {
-        if (document.getElementById("$d\_state").showState != "icon") {
-          document.getElementById("$d\_state").showState = "icon";
-          document.getElementById("$d\_state").style.display = "inline";
-          document.getElementById("$d\_state_pane").style.display = "none";
-          document.getElementById("$d\_color_button").style.display = "none";
-          if(document.removeEventListener) {
-            document.getElementById("$d\_state_slider_handle").removeEventListener("mousedown", document.getElementById("$d\_state_slider_handle").startSlide, false);
-            document.getElementById("$d\_state_slider_handle").removeEventListener("touchstart", document.getElementById("$d\_state_slider_handle").startSlide, false);
-          }
-          else if(document.detachEvent) {
-            document.detachEvent("mousedown", document.getElementById("$d\_state_slider_handle").startSlide);
-          }
-        }
-      }
-      return e;
-    }
-
-    function $d\_widgetSetState()
-    {
-      if (window.rawDataSrc.readyState == 3 && window.rawDataSrc.status == 200)
-      {
-        var lines = rawDataSrc.responseText.split("\\n");
-        var pattern = /^[0-9-]+\\s[0-9:]+\\s*[0-9]*\\sWifiLight\\s$d\\s(c1:)([0-9]+),([0-9]+),([0-9]+),([0-9]+),([0-9]+),([0-9]+)<br>\$/;
-        var parsedLines = document.getElementById("$d\_state").parsedLines;
-        parsedLines = parsedLines ? parsedLines : 0;
-        //for (var i = document.getElementById("$d\_state").parsedLines; i < lines.length; i++) {
-        for (var i = parsedLines; i < lines.length; i++) {
-          var c1match = pattern.exec(lines[i]);
-          document.getElementById("$d\_state").parsedLines = i;
-          if (c1match) {
-            console.warn("$d c1 match: " + c1match[0]);
-            
-            var leftStop = 0;
-            var rightStop = parseInt(document.getElementById("$d\_state_slider").style.width) + leftStop - parseInt(document.getElementById("$d\_state_slider_handle").style.width) -4;
-            var newSliderPos = parseInt((rightStop - leftStop) / 100 * c1match[4]);
-            document.getElementById("$d\_state_slider_handle").style.left = newSliderPos + "px";
-            document.getElementById("$d\_state_icon").setState(c1match[2], c1match[3], c1match[4], c1match[5], c1match[6], c1match[7]);
-          }
-        }
-        //console.warn("$d in set state: " + rawDataSrc.responseText);
-      }
-    }
-
-    function $d\_doCmd(cmd)
-    {
-      var sendCmd = new XMLHttpRequest();
-      sendCmd.open("GET", "$FW_ME?XHR=1&"+cmd+"&timestamp="+new Date().getTime());
-      sendCmd.send();
-      //var sliderPos = $d\_getPosition(document.getElementById("$d\_state_slider"));
-      //console.warn("in cmd state slider: " + sliderPos);
-      //var handlePos = $d\_getPosition(document.getElementById("$d\_state_slider_handle"));
-      //console.warn("in cmd state handle: " + handlePos);
-    }
-
-    function $d\_getPosition(obj)
-    {
-      var cleft = ctop = 0;
-      while (obj.offsetParent)
-      { 
-        cleft += obj.offsetLeft;
-        ctop += obj.offsetTop; 
-        obj = obj.offsetParent;
-      }
-      cleft += obj.offsetLeft;
-      ctop += obj.offsetTop;
-      return [cleft, ctop];
-    }
-  </script>
-
-  <div id="$d\_state" style="display:inline;">
-    <canvas id="$d\_state_icon" onclick="$d\_showPane()" width="48" height="48" style="display:inline; float:center;"></canvas>
-    <script language="JavaScript">
-      var $d\_state_icon = document.getElementById("$d\_state_icon");
-      $d\_state_icon.setState = function(h,s,v,r,g,b) {
-        this.width = this.width;
-
-        var context = this.getContext("2d");
-        var x = this.width /2;
-        var y = this.height /2;
-        var rad = 18;
-        var start = 1.1 * Math.PI;
-        var end = 1.9 * Math.PI;
-        context.beginPath();
-        context.arc(x,y -2,rad, start,end,false);
-        context.lineWidth = 3;
-        context.lineCap = "round";
-        context.strokeStyle = "grey";
-        context.stroke();
-
-        rad = 12;
-        start = 0 * Math.PI;
-        end = 2 * Math.PI;
-        context.beginPath();
-        context.arc(x,y -4,rad, start,end,false);
-        context.lineWidth = 1;
-        context.strokeStyle = "grey";
-        context.stroke();
-        context.fillStyle = "rgba("+ r +"," + g +"," + b + ",0.5)";
-        context.fill();
-
-        for (var i = 10; i <= v; i = i +10) {
-          y = parseInt(this.height * 0.85);
-          context.beginPath();
-          context.moveTo((i/10)*4, 46);
-          context.lineTo((i/10)*4, 36);
-          context.lineWidth = 2;
-          context.lineCap = "round";
-          context.strokeStyle = "grey";
-          context.stroke();
-        }
-      }
-    </script>
-  </div>
-  <div id="$d\_color_button" style="display:none; position:relative; height:42px; margin:4px; padding:0px;">
-END
-  for (my $i = 0; $i < 8; $i++)
-  {
-    my @colors;
-    $colors[0] = [0,100,100];
-    $colors[1] = [60,100,100];
-    $colors[2] = [120,100,100];
-    $colors[3] = [180,100,100];
-    $colors[4] = [240,100,100];
-    $colors[5] = [300,100,100];
-    $colors[6] = [0,0,100];
-    $colors[7] = [0,0,0];
-    ($r, $g, $b) = WifiLight_HSV2RGB($colors[$i][0], $colors[$i][1], $colors[$i][2]);
-    my $o = 0.5; #0.3 + ($colors[$i][2] / 200);
-    $result .= <<"END";
-    <div id="$d\_$i" onclick="$d\_doCmd('cmd.$d=set $d HSV $colors[$i][0],$colors[$i][1],$colors[$i][2]')"
-      style="
-        position:relative;
-        margin:4px;
-        float:left;
-        width:24px;
-        height:24px;
-        background-color:rgba($r, $g, $b, $o);
-        border-width:1px;
-        border-color:grey;
-        border-style:solid;
-        border-radius:8px;
-        -moz-box-shadow: 4px 4px 2px 0px #ccc;
-        -webkit-box-shadow: 4px 4px 2px 0px #ccc;
-        box-shadow: 4px 4px 2px 0px #ccc;
-        z-index:100;">
-    </div>   
-END
-  }
-  my $spos = int($v * 2.34);
-  ($r, $g, $b) = WifiLight_HSV2RGB($h, $s, $v);
-  $result .= <<"END";
-  </div>
-  <div id="$d\_state_pane" style="display:none; position:relative; height:42px; margin:4px; padding:0px;">
-    <div 
-      id="$d\_state_slider" style="
-        position:relative;
-        top:0px;
-        width:262px; 
-        height:24px;
-        margin:4px;
-        background-image:-webkit-linear-gradient(to right, lightgrey, white); 
-        background-image:-o-linear-gradient(to right, lightgrey, white);
-        background-image:-moz-linear-gradient(to right, lightgrey, white);
-        background-image:linear-gradient(to right, lightgrey, white);
-        border-width:1px; 
-        border-color:grey; 
-        border-style:solid; 
-        border-radius:8px;
-        z-index:100;">
-    </div>
-    <div 
-      id="$d\_state_slider_handle" style="
-        position:relative;
-        top:-35px;
-        left:$spos\px;
-        width:24px;
-        height:30px;
-        margin:4px;
-        border-width:3px;
-        border-color:grey;
-        border-style:solid;
-        border-radius:8px;
-        -moz-box-shadow: 4px 4px 2px 0px #ccc;
-        -webkit-box-shadow: 4px 4px 2px 0px #ccc;
-        box-shadow: 4px 4px 2px 0px #ccc;
-        z-index:100;">
-    </div>
-    <script language="JavaScript">
-      var $d\_sliderPos = $d\_getPosition(document.getElementById("$d\_state_slider"));
-      document.getElementById("$d\_state").parentNode.setAttribute("informId", "$d\_dont_touch_please");
-      window.rawDataSrcDispatcher.push($d\_widgetSetState);
-      document.getElementById("$d\_state_icon").setState($h, $s, $v, $r, $g, $b);
-      document.getElementById("$d\_state").showState = "icon";
-
-      var sh = document.getElementById("$d\_state_slider_handle");
-
-      sh.startSlide = function(e) {
-        me = document.getElementById("$d\_state_slider_handle");
-        e = e ? e : window.event;
-        if (e.changedTouches) e = e.changedTouches[0];
-        me.startPosX = e.clientX;
-        me.startPosY = e.clientY;
-        me.sliderPosX = parseInt(me.style.left);
-        if(document.addEventListener) {
-          document.addEventListener("mousemove", me.goSlide, false);
-          document.addEventListener("touchmove", me.goSlide, false);
-        }
-        else if(document.attachEvent) {
-          document.attachEvent("onmousemove", me.goSlide);
-        }
-        if(document.addEventListener) {
-          document.addEventListener("mouseup", me.endSlide, false);
-          document.addEventListener("touchend", me.endSlide, false);
-        }
-        else if(document.attachEvent) {
-          document.attachEvent("onmouseup", e.endSlide);
-        }
-        if(e.stopPropagation) e.stopPropagation();
-        if(e.preventDefault) e.preventDefault();
-        e.cancelBubble = true;
-        e.cancel = true;
-        e.returnValue = false;
-        return false;
-      }
-      sh.goSlide = function(e) {
-        me = document.getElementById("$d\_state_slider_handle");
-        e = e ? e : window.event;
-        if(e.stopPropagation) e.stopPropagation();
-        if(e.preventDefault) e.preventDefault();
-        e.cancelBubble = true;
-        e.cancel = true;
-        e.returnValue = false;
-        if (e.changedTouches) e = e.changedTouches[0];
-        var x = e.clientX;
-        var y = e.clientX;
-        var leftStop = 0;
-        var rightStop = parseInt(document.getElementById("$d\_state_slider").style.width) + leftStop - parseInt(me.style.width) -4;
-        var newSliderPos = me.sliderPosX + (x - me.startPosX);
-        newSliderPos = (newSliderPos < leftStop) ? leftStop : newSliderPos;
-        newSliderPos = (newSliderPos > rightStop) ? rightStop : newSliderPos;
-        me.style.left = newSliderPos + "px"; 
-        return false;
-      }
-      sh.endSlide = function(e) {
-        me = document.getElementById("$d\_state_slider_handle");
-        var leftStop = 0;
-        var rightStop = parseInt(document.getElementById("$d\_state_slider").style.width) + leftStop - parseInt(me.style.width) -4;
-        var newSetting = 100 / (rightStop - leftStop) * parseInt(me.style.left);
-        $d\_doCmd("cmd.$d=set $d dim "+parseInt(newSetting));
-        if(document.removeEventListener) {
-          document.removeEventListener("mousemove", me.goSlide, false);
-          document.removeEventListener("touchmove", me.goSlide, false);
-        }
-        else if(document.detachEvent) {
-          document.detachEvent("onmousemove", me.goSlide);
-        }
-        if(document.removeEventListener) {
-          document.removeEventListener("mouseup", me.endSlide, false);
-          document.removeEventListener("touchend", me.endSlide, false);
-        }
-        else if(document.detachEvent) {
-          document.detachEvent("onmouseup", me.endSlide);
-        }
-        if(e.stopPropagation) e.stopPropagation();
-        if(e.preventDefault) e.preventDefault();
-        e.cancelBubble = true;
-        e.cancel = true;
-        e.returnValue = false;
-        return false;
-      }
-    </script>
-  </div>
-  <script language="JavaScript">
-    function $d\_showPane() 
-    {
-      document.getElementById("$d\_state").style.display = "none";
-      document.getElementById("$d\_state").showState = "pane";
-      document.getElementById("$d\_state_pane").style.display = "block";
-      document.getElementById("$d\_color_button").style.display = "block";
-      if(document.addEventListener) {
-        document.getElementById("$d\_state_slider_handle").addEventListener("mousedown", document.getElementById("$d\_state_slider_handle").startSlide, false);
-        document.getElementById("$d\_state_slider_handle").addEventListener("touchstart", document.getElementById("$d\_state_slider_handle").startSlide, false);
-      }
-      else if(document.attachEvent) {
-        document.attachEvent("onmousemove", me.goSlide);
-      }
-    }
-  </script>
-END
-  return $result;
-}
-
-
 
 1;
