@@ -80,7 +80,7 @@ WifiLight_Initialize(@)
   $hash->{AttrFn} = "WifiLight_Attr";
   $hash->{NotifyFn}  = "WifiLight_Notify";
   #$hash->{FW_summaryFn} = "WifiLight_FW_summary";
-  $hash->{AttrList}     = "widget:0,1 gamma dimStep defaultColor";
+  $hash->{AttrList}     = "widget:0,1 gamma dimStep defaultColor defaultRampOn defaultRampOff";
 
   FHEM_colorpickerInit();
     
@@ -241,7 +241,7 @@ WifiLight_Define($$)
     $hash->{SLOT} = 0;
     $hash->{helper}->{GAMMAMAP} = WifiLight_CreateGammaMapping($hash, 1);
     $hash->{helper}->{COLORMAP} = WifiLight_Milight_ColorConverter($hash);
-    $hash->{helper}->{COMMANDSET} = "on off toggle dim dimup dimdown HSV rgb:colorpicker,RGB sync pair unpair";
+    $hash->{helper}->{COMMANDSET} = "on off toggle dim dimup dimdown HSV rgb:colorpicker,rgb sync pair unpair";
     #if we are allready paired: sync to get a defined state
     return WifiLight_RGB_Sync($hash) if ($hash->{LEDTYPE} eq 'RGB');
     return WifiLight_RGBW1_Sync($hash) if ($hash->{LEDTYPE} eq 'RGBW1');
@@ -257,10 +257,9 @@ WifiLight_Define($$)
     if ( grep { $i == $_ } 5..8 )
     { 
       $hash->{SLOT} = $i;
-      #$hash->{helper}->{GAMMAMAP} = WifiLight_CreateGammaMapping($hash, 0.73);
-      $hash->{helper}->{GAMMAMAP} = WifiLight_CreateGammaMapping($hash, 1);
+      $hash->{helper}->{GAMMAMAP} = WifiLight_CreateGammaMapping($hash, 0.73);
       $hash->{helper}->{COLORMAP} = WifiLight_Milight_ColorConverter($hash);
-      $hash->{helper}->{COMMANDSET} = "on off toggle dim:slider,0,7,100 dimup dimdown HSV rgb:colorpicker,RGB sync pair unpair";
+      $hash->{helper}->{COMMANDSET} = "on off toggle dim:slider,0,5,100 dimup dimdown HSV rgb:colorpicker,RGB sync pair unpair";
 
       $attr{$name}{devStateIcon} = '{(WifiLight_devStateIcon($name),"toggle")}' if( !defined( $attr{$name}{devStateIcon} ) );
       $attr{$name}{webCmd} = 'rgb:rgb ff0000:rgb 00ff00:rgb 0000ff:toggle:on:off' if( !defined( $attr{$name}{webCmd} ) );
@@ -361,6 +360,10 @@ WifiLight_Set(@)
       return "usage: set $name on [seconds]" if ($a[0] !~ /^\d+$/);
       $ramp = $a[0];
     }
+    elsif (defined($attr{$name}{defaultRampOn}))
+    {
+      $ramp = $attr{$name}{defaultRampOn};
+    }
     return WifiLight_RGBLW12_On($hash, $ramp) if (($hash->{LEDTYPE} eq 'RGB') && ($hash->{CONNECTION} eq 'LW12'));
     return WifiLight_RGB_On($hash, $ramp) if (($hash->{LEDTYPE} eq 'RGB') && ($hash->{CONNECTION} =~ 'bridge-V[2|3]'));
     return WifiLight_RGBW1_On($hash, $ramp) if ($hash->{LEDTYPE} eq 'RGBW1');
@@ -375,6 +378,10 @@ WifiLight_Set(@)
     {
       return "usage: set $name off [seconds]" if ($a[0] !~ /^\d+$/);
       $ramp = $a[0];
+    }
+    elsif (defined($attr{$name}{defaultRampOff}))
+    {
+      $ramp = $attr{$name}{defaultRampOff};
     }
     return WifiLight_RGBLW12_Off($hash, $ramp) if (($hash->{LEDTYPE} eq 'RGB') && ($hash->{CONNECTION} eq 'LW12'));
     return WifiLight_RGB_Off($hash, $ramp) if (($hash->{LEDTYPE} eq 'RGB') && ($hash->{CONNECTION} =~ 'bridge-V[2|3]'));
@@ -507,6 +514,10 @@ WifiLight_Attr(@)
     return "defaultColor: wrong hue ($hue): valid range 0..360" if !(($hue >= 0) && ($hue <= 360));
     return "defaultColor: wrong saturation ($sat): valid range 0..100" if !(($sat >= 0) && ($sat <= 100));
     return "defaultColor: wrong brightness ($val): valid range 0..100" if !(($val >= 0) && ($val <= 100));
+  }
+  if ($cmd eq 'set' && (($attribName eq 'defaultRampOn') || ($attribName eq 'defaultRampOff')))
+  {
+    return "defaultRampOn/Off is required as numerical value [0..100]" if ($attribVal !~ /^\d*$/) || (($attribVal < 0) || ($attribVal > 100));
   }
   Log3 ($ledDevice, 4, "$ledDevice->{NAME} attrib $attribName $cmd $attribVal"); 
   return undef;
