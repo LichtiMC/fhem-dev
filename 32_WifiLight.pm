@@ -262,7 +262,7 @@ WifiLight_Define($$)
       $hash->{helper}->{COMMANDSET} = "on off toggle dim:slider,0,5,100 dimup dimdown HSV rgb:colorpicker,RGB sync pair unpair";
 
       $attr{$name}{devStateIcon} = '{(WifiLight_devStateIcon($name),"toggle")}' if( !defined( $attr{$name}{devStateIcon} ) );
-      $attr{$name}{webCmd} = 'rgb:rgb ff0000:rgb 00ff00:rgb 0000ff:toggle:on:off' if( !defined( $attr{$name}{webCmd} ) );
+      $attr{$name}{webCmd} = 'rgb:rgb ff0000:rgb 00ff00:rgb 0000ff:rgb ffff00:on:off:dim' if( !defined( $attr{$name}{webCmd} ) );
       return WifiLight_RGBW2_Sync($hash);
     }
     else
@@ -497,7 +497,7 @@ WifiLight_Get(@)
     return ReadingsVal($name, "RGB", "FFFFFF");
   }
   
-  return "Unknown argument $cmd, choose one of rgb:noArg RGB:noArg devStateIcon:noArg";
+  return "Unknown argument $cmd, choose one of rgb:noArg";
 }
 
 sub
@@ -1190,12 +1190,20 @@ sub
 WifiLight_RGBW2_On(@)
 {
   my ($ledDevice, $ramp) = @_;
+  my $v = 100;
   Log3 ($ledDevice, 3, "$ledDevice->{NAME} RGBW2 slot $ledDevice->{SLOT} set on $ramp");
   # Switch on with same brightness it was switched off with, or max if undefined.
-  my $v = 100;
-  if (ReadingsVal($ledDevice->{NAME}, "brightness_on", 100) > 7)
+  if (ReadingsVal($ledDevice->{NAME}, "state", "off") eq "off")
   {
-    Log3 ($ledDevice, 3, "$ledDevice->{NAME} brightness_on $v");
+    $v = ReadingsVal($ledDevice->{NAME}, "brightness_on", 100);
+  }
+  else
+  {
+    $v = ReadingsVal($ledDevice->{NAME}, "brightness", 100);
+  }
+  if ($v < 7)
+  {
+    $v = 100;
   }
 
   return WifiLight_RGBW2_Dim($ledDevice, $v, $ramp, ''); 
@@ -1206,7 +1214,8 @@ WifiLight_RGBW2_Off(@)
 {
   my ($ledDevice, $ramp) = @_;
   # Store value of brightness before turning off
-  if (ReadingsVal($ledDevice->{NAME}, "state", "off") eq "on")
+  # "on" will be of the form "on 50" where 50 is current dimlevel
+  if (ReadingsVal($ledDevice->{NAME}, "state", "off") ne "off")
   {
     readingsBeginUpdate($ledDevice);
     readingsBulkUpdate($ledDevice, "brightness_on", ReadingsVal($ledDevice->{NAME}, "brightness", 100));
@@ -1249,7 +1258,7 @@ WifiLight_RGBW2_setHSV(@)
   my $cf = 100 / 25;
   my $cb = int(($gammaVal / $cf) + 0.5);
   $cb += ($cb > 0)?2:0;
-
+  Log3 $FW_wname, 3, $cb;
   if ($sat < 20) 
   {
     $wl = $cb;
@@ -1280,6 +1289,7 @@ WifiLight_RGBW2_setHSV(@)
   }
   else
   {
+    Log3 $FW_wname, 3, "wl: $wl; mode: $ledDevice->{helper}->{mode}";
     WifiLight_LowLevelCmdQueue_Add($ledDevice, @bulbCmdsOn[$ledDevice->{SLOT} -5]."\x00\x55", $receiver, $delay) if (($wl > 0) || ($cl > 0)); # group on
     if (($wl > 0) && ($ledDevice->{helper}->{mode} != 2)) # not white
     {
