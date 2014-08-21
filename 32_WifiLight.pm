@@ -486,10 +486,18 @@ WifiLight_Set(@)
 sub
 WifiLight_Get(@)
 {
-  my ($ledDevice, $name, $cmd, @args) = @_;
-  my $cnt = @args;
+  my ($hash, @a) = @_;
+
+  my $name = $a[0];
+  return "$name: get needs at least one parameter" if(@a < 2);
+
+  my $cmd= $a[1];
+
+  if($cmd eq "rgb") {
+    return ReadingsVal($name, "RGB", "FFFFFF");
+  }
   
-  return undef;
+  return "Unknown argument $cmd, choose one of rgb:noArg RGB:noArg devStateIcon:noArg";
 }
 
 sub
@@ -1621,7 +1629,7 @@ WifiLight_setHSV_Readings(@)
   readingsBulkUpdate($ledDevice, "brightness", $val);
   readingsBulkUpdate($ledDevice, "brightness_on", $val_on);
   readingsBulkUpdate($ledDevice, "RGB", sprintf("%02X%02X%02X",$r,$g,$b));
-  readingsBulkUpdate($ledDevice, "state", "on") if ($val > 0);
+  readingsBulkUpdate($ledDevice, "state", "on $val") if ($val > 0);
   readingsBulkUpdate($ledDevice, "state", "off") if ($val == 0);
   readingsEndUpdate($ledDevice, 0);
   DoTrigger($ledDevice->{NAME}, "c1:$hue,$sat,$val,$r,$g,$b",1);
