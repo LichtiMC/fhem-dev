@@ -1,4 +1,4 @@
-# $Id$
+# $Id: 46_TRX_LIGHT.pm 6225 2014-07-09 18:36:02Z wherzig $
 ##############################################################################
 #
 #     46_TRX_LIGHT.pm
@@ -791,6 +791,7 @@ sub TRX_LIGHT_parse_X10 ($$)
   if (($firstdevice == 1) && $val) {
   	#$def->{STATE} = $val;
 	readingsBulkUpdate($def, "state", $val);
+        readingsBulkUpdate($def, "signal", $bytes->[10]);
   }
 
   readingsEndUpdate($def, 1);
