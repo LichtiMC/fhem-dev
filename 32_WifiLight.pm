@@ -1279,7 +1279,7 @@ WifiLight_RGBW2_setHSV(@)
   $ledDevice->{helper}->{llLock} += 1;
   Log3 ($ledDevice, 5, "$ledDevice->{NAME} RGBW2 slot $ledDevice->{SLOT} lock queue ".$ledDevice->{helper}->{llLock});
 
-  if (($wl == 0) && ($cl ==0) && ($ledDevice->{helper}->{mode} != 0))
+  if (($wl == 0) && ($cl == 0))
   {
     WifiLight_LowLevelCmdQueue_Add($ledDevice, @bulbCmdsOff[$ledDevice->{SLOT} -5]."\x00\x55", $receiver, $delay);
     $ledDevice->{helper}->{whiteLevel} = 0;

@@ -767,6 +767,12 @@ sub TRX_LIGHT_parse_X10 ($$)
   readingsBeginUpdate($def);
 
   if ($type == 0x10 || $type == 0x11 || $type == 0x14 || $type == 0x16) {
+        if ($type == 0x10) {
+                readingsBulkUpdate($def, "signal", $bytes->[6]);
+        } else {
+                readingsBulkUpdate($def, "signal", $bytes->[10]);
+        }
+        
 	# try to use it for all types:
 	$current = $command;
 	if ($type == 0x11 && $command eq "level") {
@@ -791,7 +797,6 @@ sub TRX_LIGHT_parse_X10 ($$)
   if (($firstdevice == 1) && $val) {
   	#$def->{STATE} = $val;
 	readingsBulkUpdate($def, "state", $val);
-        readingsBulkUpdate($def, "signal", $bytes->[10]);
   }
 
   readingsEndUpdate($def, 1);
