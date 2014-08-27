@@ -89,7 +89,8 @@ sub SB_PLAYER_Initialize( $ ) {
     
     # the attributes we have. Space separated list of attribute values in 
     # the form name:default1,default2
-    $hash->{AttrList}  = "volumeStep volumeLimit "; 
+    $hash->{AttrList}  = "IODev ignore:1,0 do_not_notify:1,0 ";
+    $hash->{AttrList}  .= "volumeStep volumeLimit "; 
     $hash->{AttrList}  .= "ttslanguage:de,en,fr ttslink ";
     $hash->{AttrList}  .= "donotnotify:true,false ";
     $hash->{AttrList}  .= "idismac:true,false ";
@@ -457,13 +458,13 @@ sub SB_PLAYER_Parse( $$ ) {
 
 	if( SB_PLAYER_IsValidMAC( $idbuf ) == 1 ) {
 	    # the MAC Adress is valid
-	    Log3( undef, 3, "SB_PLAYER_Parse: the unkown ID $id is a valid " . 
+	    Log3( undef, 3, "SB_PLAYER_Parse: the unknown ID $id is a valid " . 
 		  "MAC Adress" );
 	    # this line supports autocreate
 	    return( "UNDEFINED SB_PLAYER_$id SB_PLAYER $idbuf" );
 	} else {
 	    # the MAC adress is not valid
-	    Log3( undef, 3, "SB_PLAYER_Parse: the unkown ID $id is NOT " . 
+	    Log3( undef, 3, "SB_PLAYER_Parse: the unknown ID $id is NOT " . 
 		  "a valid MAC Adress" );
 	    return( undef );
 	}
@@ -471,6 +472,7 @@ sub SB_PLAYER_Parse( $$ ) {
     
     # so the data is for us
     my $name = $hash->{NAME};
+    return "" if(IsIgnored($name));
 
     Log3( $hash, 5, "SB_PLAYER_Parse: $name CMD:$cmd ARGS:@args..." ); 
 
