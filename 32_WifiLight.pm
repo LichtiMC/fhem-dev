@@ -1,13 +1,10 @@
 ##############################################
-# $Id: 32_WifiLight.pm 68 2013-12-08 08:00:00Z herrmannj $
+# $Id: 32_WifiLight.pm 69 2014-08-28 08:00:00Z herrmannj $
 
 # TODO
-# color picker
 # color adjustments / attrib
 # doku
 # adjust gamma defaults milight
-# implement get 
-# * get rgb / RGB
 # * get state: return usefull data about actuals, also trigger c1:.*
 
 # versions
@@ -29,6 +26,7 @@
 # 66 readings: lower camelCase and limited trigger
 # 67 restore state after startup
 # 68 LW12 reconnect after timeout
+# 69 Implement Get, devStateIcon etc.
 
 
 # verbose level
@@ -493,11 +491,11 @@ WifiLight_Get(@)
 
   my $cmd= $a[1];
 
-  if($cmd eq "rgb") {
+  if($cmd eq "rgb" || $cmd eq "RGB") {
     return ReadingsVal($name, "RGB", "FFFFFF");
   }
   
-  return "Unknown argument $cmd, choose one of rgb:noArg";
+  return "Unknown argument $cmd, choose one of rgb:noArg RGB:noArg";
 }
 
 sub
@@ -1279,14 +1277,14 @@ WifiLight_RGBW2_setHSV(@)
   $ledDevice->{helper}->{llLock} += 1;
   Log3 ($ledDevice, 5, "$ledDevice->{NAME} RGBW2 slot $ledDevice->{SLOT} lock queue ".$ledDevice->{helper}->{llLock});
 
-  if (($wl == 0) && ($cl == 0))
+  if (($wl == 0) && ($cl == 0)) # off
   {
-    WifiLight_LowLevelCmdQueue_Add($ledDevice, @bulbCmdsOff[$ledDevice->{SLOT} -5]."\x00\x55", $receiver, $delay);
+    WifiLight_LowLevelCmdQueue_Add($ledDevice, @bulbCmdsOff[$ledDevice->{SLOT} -5]."\x00\x55", $receiver, $delay); # group off
     $ledDevice->{helper}->{whiteLevel} = 0;
     $ledDevice->{helper}->{colorLevel} = 0;
     $ledDevice->{helper}->{mode} = 0; # group off
   }
-  else
+  else # on
   {
     WifiLight_LowLevelCmdQueue_Add($ledDevice, @bulbCmdsOn[$ledDevice->{SLOT} -5]."\x00\x55", $receiver, $delay) if (($wl > 0) || ($cl > 0)); # group on
     if ($wl > 0) # white
@@ -1295,17 +1293,13 @@ WifiLight_RGBW2_setHSV(@)
       WifiLight_LowLevelCmdQueue_Add($ledDevice, "\x4E".chr($wl)."\x55", $receiver, $delay); # brightness
       $ledDevice->{helper}->{mode} = 2; # white
     }
-    elsif (($cl > 0) && ($ledDevice->{helper}->{mode} != 1)) # not color
+    elsif ($cl > 0) # color
     {
       WifiLight_LowLevelCmdQueue_Add($ledDevice, "\x40".chr($cv)."\x55", $receiver, $delay); # color
       WifiLight_LowLevelCmdQueue_Add($ledDevice, "\x4E".chr($cl)."\x55", $receiver, $delay); # brightness
       $ledDevice->{helper}->{mode} = 1; # color
     }
-    elsif (($cl > 0) && ($ledDevice->{helper}->{mode} == 1)) # already color
-    {
-      WifiLight_LowLevelCmdQueue_Add($ledDevice, "\x4E".chr($cl)."\x55", $receiver, $delay) if ($ledDevice->{helper}->{colorLevel} != $cl); # brightness
-      WifiLight_LowLevelCmdQueue_Add($ledDevice, "\x40".chr($cv)."\x55", $receiver, $delay) if ($ledDevice->{helper}->{colorValue} != $cv); # color
-    }
+
     $ledDevice->{helper}->{colorValue} = $cv;
     $ledDevice->{helper}->{colorLevel} = $cl;
     $ledDevice->{helper}->{whiteLevel} = $wl;
