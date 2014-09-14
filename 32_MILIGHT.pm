@@ -173,8 +173,12 @@ MILIGHT_Define($$)
   if (($hash->{LEDTYPE} eq 'RGB') || ($hash->{LEDTYPE} eq 'RGBW'))
   {
     $hash->{helper}->{COLORMAP} = MILIGHT_Milight_ColorConverter($hash);
-    $hash->{helper}->{COMMANDSET} = "on off toggle dim:slider,0,".(100/MILIGHT_dimSteps($hash)).",100 dimup dimdown HSV rgb:colorpicker,RGB discoMode discoSpeed pair unpair";
   }
+  $hash->{helper}->{COMMANDSET} = "on off toggle dim:slider,0,".(100/MILIGHT_dimSteps($hash)).",100 dimup dimdown HSV rgb:colorpicker,RGB discoModeUp discoSpeedUp discoSpeedDown pair unpair"
+  			if ($hash->{LEDTYPE} eq 'RGBW');
+  $hash->{helper}->{COMMANDSET} = "on off toggle dim:slider,0,".(100/MILIGHT_dimSteps($hash)).",100 dimup dimdown HSV rgb:colorpicker,RGB discoModeUp discoModeDown discoSpeedUp discoSpeedDown pair unpair"
+  			if ($hash->{LEDTYPE} eq 'RGB');
+  			
   $hash->{helper}->{COMMANDSET} = "on off toggle dim:slider,0,".(100/MILIGHT_dimSteps($hash)).",100 dimup dimdown colourtemp:slider,1,1,10 pair unpair"
   			if ($hash->{LEDTYPE} eq 'White');
   
@@ -346,26 +350,30 @@ MILIGHT_Set(@)
     return MILIGHT_SetHSV_Target($hash, $hue, $sat, $val);
   }
   
-  elsif ($cmd eq 'discoMode')
+  elsif ($cmd eq 'discoModeUp')
   {
     MILIGHT_HighLevelCmdQueue_Clear($hash);
-    if (defined($a[0]))
-    {
-      return "usage: set $name discoMode [1..20]" if (!($a[0] ~~ [1..20]));  
-    }
-    return MILIGHT_RGBW_DiscoModeStep($hash, $a[0]);
+    return MILIGHT_RGBW_DiscoModeStep($hash, 1);
   }
-  
-  elsif ($cmd eq 'discoSpeed')
+
+  elsif ($cmd eq 'discoModeDown')
   {
     MILIGHT_HighLevelCmdQueue_Clear($hash);
-    if (defined($a[0]))
-    {
-      return "usage: set $name discoSpeed [1..10]" if (!($a[0] ~~ [1..10])); 
-    }
-    return MILIGHT_RGBW_DiscoModeSpeed($hash, $a[0]);
+    return MILIGHT_RGBW_DiscoModeStep($hash, 0);
   }
-  
+    
+  elsif ($cmd eq 'discoSpeedUp')
+  {
+    MILIGHT_HighLevelCmdQueue_Clear($hash);
+    return MILIGHT_RGBW_DiscoModeSpeed($hash, 1);
+  }
+
+  elsif ($cmd eq 'discoSpeedDown')
+  {
+    MILIGHT_HighLevelCmdQueue_Clear($hash);
+    return MILIGHT_RGBW_DiscoModeSpeed($hash, 0);
+  }
+    
   elsif ($cmd eq 'colourtemp')
   {
       MILIGHT_HighLevelCmdQueue_Clear($hash);
@@ -798,14 +806,15 @@ sub
 MILIGHT_RGBW_DiscoModeStep(@)
 {
   my ($ledDevice, $step) = @_;
+  
+  my @bulbCmdsOn = ("\x45", "\x47", "\x49", "\x4B");
 
   my $receiver = sockaddr_in($ledDevice->{PORT}, inet_aton($ledDevice->{IP}));
   my $delay = 100;
   
-  $step = 1 if ($step < 1);
-  $step = 20 if ($step > 20);
+  $step = 0 if ($step < 0);
+  $step = 1 if ($step > 1);
   
-  my $oldStep = ReadingsVal($ledDevice->{NAME}, 'discoMode', 0);
   # Set readings in FHEM
   MILIGHT_setDisco_Readings($ledDevice, $step, ReadingsVal($ledDevice->{NAME}, 'discoSpeed', 5));
 
@@ -815,31 +824,17 @@ MILIGHT_RGBW_DiscoModeStep(@)
   $ledDevice->{helper}->{llLock} += 1;
   Log3 ($ledDevice, 5, "$ledDevice->{NAME} RGBW slot $ledDevice->{SLOT} lock queue ".$ledDevice->{helper}->{llLock});
 
-  if ($oldStep < $step)
+  MILIGHT_LowLevelCmdQueue_Add($ledDevice, "\x22\x00\x55", $receiver, $delay) if (($ledDevice->{LEDTYPE} eq 'RGB')); # switch on
+  MILIGHT_LowLevelCmdQueue_Add($ledDevice, @bulbCmdsOn[$ledDevice->{SLOT} -5]."\x00\x55", $receiver, $delay) if (($ledDevice->{LEDTYPE} eq 'RGBW')); # group on
+
+  if ($step == 1)
   {
-    for (my $i=$oldStep;$i < $step; $i++)
-  	{
       MILIGHT_LowLevelCmdQueue_Add($ledDevice, "\x27\x00\x55", $receiver, $delay) if (($ledDevice->{LEDTYPE} eq 'RGB')); # discoMode step up
       MILIGHT_LowLevelCmdQueue_Add($ledDevice, "\x4D\x00\x55", $receiver, $delay) if (($ledDevice->{LEDTYPE} eq 'RGBW')); # discoMode step up
-  	}
   }
-  else
+  elsif ($step == 0)
   {
-  	if ($ledDevice->{LEDTYPE} eq 'RGB')
-  	{
-      for (my $i=$oldStep;$i > $step; $i--)
-      {
-        MILIGHT_LowLevelCmdQueue_Add($ledDevice, "\x28\x00\x55", $receiver, $delay); # discoMode step down
-      }
-  	}
-  	elsif ($ledDevice->{LEDTYPE} eq 'RGBW')
-  	{
-      # Only got an up command so need to loop round 20 - ($oldStep - $step)
-  	  for (my $i=0;$i < (20 - ($oldStep - $step));$i++)
-  	  {
-  	    MILIGHT_LowLevelCmdQueue_Add($ledDevice, "\x4D\x00\x55", $receiver, $delay); # discoMode step up
-  	  }
-  	}
+    MILIGHT_LowLevelCmdQueue_Add($ledDevice, "\x28\x00\x55", $receiver, $delay); # discoMode step down
   }
   
   $ledDevice->{helper}->{mode} = 3; # disco
@@ -854,13 +849,14 @@ MILIGHT_RGBW_DiscoModeSpeed(@)
 {
   my ($ledDevice, $speed) = @_;
 
+  my @bulbCmdsOn = ("\x45", "\x47", "\x49", "\x4B");
+
   my $receiver = sockaddr_in($ledDevice->{PORT}, inet_aton($ledDevice->{IP}));
   my $delay = 100;
   
-  $speed = 1 if ($speed < 1);
-  $speed = 10 if ($speed > 10);
+  $speed = 0 if ($speed < 0);
+  $speed = 1 if ($speed > 1);
   
-  my $oldSpeed = ReadingsVal($ledDevice->{NAME}, 'discoSpeed', 5);
   # Set readings in FHEM
   MILIGHT_setDisco_Readings($ledDevice, ReadingsVal($ledDevice->{NAME}, 'discoMode', 1), $speed);
   
@@ -870,21 +866,18 @@ MILIGHT_RGBW_DiscoModeSpeed(@)
   $ledDevice->{helper}->{llLock} += 1;
   Log3 ($ledDevice, 5, "$ledDevice->{NAME} RGBW slot $ledDevice->{SLOT} lock queue ".$ledDevice->{helper}->{llLock});
 
-  if ($oldSpeed < $speed)
+  MILIGHT_LowLevelCmdQueue_Add($ledDevice, "\x22\x00\x55", $receiver, $delay) if (($ledDevice->{LEDTYPE} eq 'RGB')); # switch on
+  MILIGHT_LowLevelCmdQueue_Add($ledDevice, @bulbCmdsOn[$ledDevice->{SLOT} -5]."\x00\x55", $receiver, $delay) if (($ledDevice->{LEDTYPE} eq 'RGBW')); # group on
+
+  if ($speed == 1)
   {
-    for (my $i=$oldSpeed;$i < $speed; $i++)
-  	{
-      MILIGHT_LowLevelCmdQueue_Add($ledDevice, "\x25\x00\x55", $receiver, $delay) if ($ledDevice->{LEDTYPE} eq 'RGB'); # discoMode speed up
-      MILIGHT_LowLevelCmdQueue_Add($ledDevice, "\x44\x00\x55", $receiver, $delay) if ($ledDevice->{LEDTYPE} eq 'RGBW'); # discoMode speed up
-  	}
+    MILIGHT_LowLevelCmdQueue_Add($ledDevice, "\x25\x00\x55", $receiver, $delay) if ($ledDevice->{LEDTYPE} eq 'RGB'); # discoMode speed up
+    MILIGHT_LowLevelCmdQueue_Add($ledDevice, "\x44\x00\x55", $receiver, $delay) if ($ledDevice->{LEDTYPE} eq 'RGBW'); # discoMode speed up
   }
-  else
+  elsif ($speed == 0)
   {
-  	for (my $i=$oldSpeed; $i > $speed; $i--)
-    {
-      MILIGHT_LowLevelCmdQueue_Add($ledDevice, "\x26\x00\x55", $receiver, $delay) if ($ledDevice->{LEDTYPE} eq 'RGB'); # discoMode speed down
-      MILIGHT_LowLevelCmdQueue_Add($ledDevice, "\x43\x00\x55", $receiver, $delay) if ($ledDevice->{LEDTYPE} eq 'RGBW'); # discoMode speed down    	
-  	}
+    MILIGHT_LowLevelCmdQueue_Add($ledDevice, "\x26\x00\x55", $receiver, $delay) if ($ledDevice->{LEDTYPE} eq 'RGB'); # discoMode speed down
+    MILIGHT_LowLevelCmdQueue_Add($ledDevice, "\x43\x00\x55", $receiver, $delay) if ($ledDevice->{LEDTYPE} eq 'RGBW'); # discoMode speed down
   }
 
   $ledDevice->{helper}->{mode} = 3; # disco
@@ -1269,20 +1262,17 @@ MILIGHT_setHSV_Readings(@)
 sub
 MILIGHT_setDisco_Readings(@)
 {
-  # Step/Speed can be "1" or "-1" when active, 0 when inactive
+  # Step/Speed can be "1" or "0" when active
   my ($ledDevice, $step, $speed) = @_;
   
   if (($ledDevice->{LEDTYPE} eq 'RGB') || ($ledDevice->{LEDTYPE} eq 'RGBW'))
   {
     my $discoMode = ReadingsVal($ledDevice->{NAME}, "discoMode", 0);
-    $discoMode += $step;
-    $discoMode = 1 if $discoMode < 1;
-    $discoMode = 20 if $discoMode > 20;
+    $discoMode = "on";
     
     my $discoSpeed = ReadingsVal($ledDevice->{NAME}, "discoSpeed", 5);
-    $discoSpeed += $speed;
-    $discoSpeed = 1 if $discoSpeed < 1;
-    $discoSpeed = 10 if $discoSpeed > 10;
+    $discoSpeed = "-" if ($speed == 0);
+    $discoSpeed = "+" if ($speed == 1);
     
     readingsBeginUpdate($ledDevice);
     readingsBulkUpdate($ledDevice, "discoMode", $step);
