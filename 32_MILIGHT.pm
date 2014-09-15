@@ -989,17 +989,7 @@ MILIGHT_White_setHSV(@)
   # Validate brightness
   $val = 100 if ($val > 100);
   $val = 0 if ($val < 0);
-  
-  MILIGHT_White_setBrightness($ledDevice, $val);
-  
-  return undef;
-}
 
-sub
-MILIGHT_White_setBrightness(@)
-{
-  # $hue is colourTemperature (1-10), $val is brightness (0-100%)
-  my ($ledDevice, $val) = @_;
   my @bulbCmdsOn = ("\x38", "\x3D", "\x37", "\x32");
   my @bulbCmdsOff = ("\x3B", "\x33", "\x3A", "\x36");
   my $receiver = sockaddr_in($ledDevice->{PORT}, inet_aton($ledDevice->{IP}));
@@ -1022,10 +1012,6 @@ MILIGHT_White_setBrightness(@)
       MILIGHT_LowLevelCmdQueue_Add($ledDevice, "\x34\x00\x55", $receiver, $delay); # brightness down
       $ledDevice->{helper}->{whiteLevel} = $i - 1;
     }
-    if ($wl == 0)
-    {
-      MILIGHT_LowLevelCmdQueue_Add($ledDevice, @bulbCmdsOff[$ledDevice->{SLOT} -1]."\x00\x55", $receiver, $delay); # group off
-    }
   }
   # Brightness Up
   elsif ($ledDevice->{helper}->{whiteLevel} < $wl)
@@ -1040,6 +1026,12 @@ MILIGHT_White_setBrightness(@)
     }
   }
 
+  # Make sure we actually send off command if we should be off
+  if ($wl == 0)
+  {
+    MILIGHT_LowLevelCmdQueue_Add($ledDevice, @bulbCmdsOff[$ledDevice->{SLOT} -1]."\x00\x55", $receiver, $delay); # group off
+  }
+    
   return undef;
 }
 
