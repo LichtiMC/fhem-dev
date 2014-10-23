@@ -460,7 +460,7 @@ MILIGHT_RGB_Pair(@)
   my ($hash, $numSeconds) = @_;
   $numSeconds = 3 if (($numSeconds || 0) == 0);
   Log3 ($hash, 3, "$hash->{NAME} RGB LED slot $hash->{SLOT} pair $numSeconds s"); 
-  # find my slot and get my group-all-on cmd
+  # DISCO SPEED FASTER 0x25 (SYNC/PAIR RGB Bulb within 2 seconds of Wall Switch Power being turned ON)
   my $ctrl = "\x25\x00\x55";
   for (my $i = 0; $i < $numSeconds; $i++)
   { 
@@ -475,14 +475,15 @@ MILIGHT_RGB_UnPair(@)
   my ($hash) = @_;
   my $numSeconds = 8;
   Log3 ($hash, 3, "$hash->{NAME} RGB LED slot $hash->{SLOT} unpair $numSeconds s"); 
-  # find my slot and get my group-all-on cmd
+  # DISCO SPEED FASTER 0x25 (SYNC/PAIR RGB Bulb within 2 seconds of Wall Switch Power being turned ON)
   my $ctrl = "\x25\x00\x55";
   for (my $i = 0; $i < $numSeconds; $i++)
   { 
-    MILIGHT_HighLevelCmdQueue_Add($hash, undef, undef, undef, $ctrl, 250, undef);
-    MILIGHT_HighLevelCmdQueue_Add($hash, undef, undef, undef, $ctrl, 250, undef);
-    MILIGHT_HighLevelCmdQueue_Add($hash, undef, undef, undef, $ctrl, 250, undef);
-    MILIGHT_HighLevelCmdQueue_Add($hash, undef, undef, undef, $ctrl, 250, undef);
+    MILIGHT_HighLevelCmdQueue_Add($hash, undef, undef, undef, $ctrl, 200, undef);
+    MILIGHT_HighLevelCmdQueue_Add($hash, undef, undef, undef, $ctrl, 200, undef);
+    MILIGHT_HighLevelCmdQueue_Add($hash, undef, undef, undef, $ctrl, 200, undef);
+    MILIGHT_HighLevelCmdQueue_Add($hash, undef, undef, undef, $ctrl, 200, undef);
+    MILIGHT_HighLevelCmdQueue_Add($hash, undef, undef, undef, $ctrl, 200, undef);
   }
   return undef;
 }
@@ -670,13 +671,14 @@ MILIGHT_RGBW_UnPair(@)
   Log3 ($hash, 3, "$hash->{NAME}, $hash->{LEDTYPE} at $hash->{CONNECTION}, slot $hash->{SLOT}: unpair $numSeconds"); 
   # find my slot and get my group-all-on cmd
   my $onCtrl = @bulbCmdsOn[$hash->{SLOT} -5]."\x00\x55";
-  my $fullOnCtrl = "\x4E\x1B\x55";
+  # my $fullOnCtrl = "\x4E\x1B\x55";
   for (my $i = 0; $i < $numSeconds; $i++)
   { 
-    MILIGHT_HighLevelCmdQueue_Add($hash, undef, undef, undef, $onCtrl, 250, undef);
-    MILIGHT_HighLevelCmdQueue_Add($hash, undef, undef, undef, $fullOnCtrl, 250, undef);
-    MILIGHT_HighLevelCmdQueue_Add($hash, undef, undef, undef, $fullOnCtrl, 250, undef);
-    MILIGHT_HighLevelCmdQueue_Add($hash, undef, undef, undef, $fullOnCtrl, 250, undef);
+    MILIGHT_HighLevelCmdQueue_Add($hash, undef, undef, undef, $onCtrl, 200, undef);
+    MILIGHT_HighLevelCmdQueue_Add($hash, undef, undef, undef, $onCtrl, 200, undef);
+    MILIGHT_HighLevelCmdQueue_Add($hash, undef, undef, undef, $onCtrl, 200, undef);
+    MILIGHT_HighLevelCmdQueue_Add($hash, undef, undef, undef, $onCtrl, 200, undef);
+    MILIGHT_HighLevelCmdQueue_Add($hash, undef, undef, undef, $onCtrl, 200, undef);
   }
   return undef;
 }
@@ -928,13 +930,14 @@ MILIGHT_White_UnPair(@)
   Log3 ($hash, 3, "$hash->{NAME}, $hash->{LEDTYPE} at $hash->{CONNECTION}, slot $hash->{SLOT}: unpair $numSeconds"); 
   # find my slot and get my group-all-on cmd
   my $onCtrl = @bulbCmdsOn[$hash->{SLOT} -1]."\x00\x55";
-  my $fullOnCtrl = @bulbCmdsOnFull[$hash->{SLOT} -1]."\x00\x55";
+  #my $fullOnCtrl = @bulbCmdsOnFull[$hash->{SLOT} -1]."\x00\x55";
   for (my $i = 0; $i < $numSeconds; $i++)
   { 
-    MILIGHT_HighLevelCmdQueue_Add($hash, undef, undef, undef, $onCtrl, 250, undef);
-    MILIGHT_HighLevelCmdQueue_Add($hash, undef, undef, undef, $fullOnCtrl, 250, undef);
-    MILIGHT_HighLevelCmdQueue_Add($hash, undef, undef, undef, $fullOnCtrl, 250, undef);
-    MILIGHT_HighLevelCmdQueue_Add($hash, undef, undef, undef, $fullOnCtrl, 250, undef);
+    MILIGHT_HighLevelCmdQueue_Add($hash, undef, undef, undef, $onCtrl, 200, undef);
+    MILIGHT_HighLevelCmdQueue_Add($hash, undef, undef, undef, $onCtrl, 200, undef);
+    MILIGHT_HighLevelCmdQueue_Add($hash, undef, undef, undef, $onCtrl, 200, undef);
+    MILIGHT_HighLevelCmdQueue_Add($hash, undef, undef, undef, $onCtrl, 200, undef);
+    MILIGHT_HighLevelCmdQueue_Add($hash, undef, undef, undef, $onCtrl, 200, undef);
   }
   return undef;
 }
