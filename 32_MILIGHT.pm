@@ -207,6 +207,7 @@ MILIGHT_Set(@)
   my $ramp = 0;
   my $flags = "";
   my $event = undef;
+  my $usage = "set $name ...";
 
   # Commands that map to other commands
   if( $cmd eq "toggle" )
@@ -217,12 +218,12 @@ MILIGHT_Set(@)
   # Commands
   if ($cmd eq 'pair')
   {
-    MILIGHT_HighLevelCmdQueue_Clear($hash);
     if (defined($a[0]))
     {
-      return "usage: set $name pair [seconds]" if ($a[0] !~ /^\d+$/);
+      return "Usage: set $name pair <seconds(0..X)>" if ($a[0] !~ /^\d+$/);
       $ramp = $a[0];
     }
+    MILIGHT_HighLevelCmdQueue_Clear($hash);
     return MILIGHT_RGB_Pair($hash, $ramp) if ($hash->{LEDTYPE} eq 'RGB');
     return MILIGHT_RGBW_Pair($hash, $ramp) if ($hash->{LEDTYPE} eq 'RGBW');
     return MILIGHT_White_Pair($hash, $ramp) if ($hash->{LEDTYPE} eq 'White');
@@ -230,12 +231,12 @@ MILIGHT_Set(@)
 
   elsif ($cmd eq 'unpair')
   {
-    MILIGHT_HighLevelCmdQueue_Clear($hash);
     if (defined($a[0]))
     {
-      return "usage: set $name unpair [seconds]" if ($a[0] !~ /^\d+$/);
+      return "Usage: set $name unpair <seconds(0..X)>" if ($a[0] !~ /^\d+$/);
       $ramp = $a[0];
     }
+    MILIGHT_HighLevelCmdQueue_Clear($hash);
     return MILIGHT_RGB_UnPair($hash, $ramp) if ($hash->{LEDTYPE} eq 'RGB');
     return MILIGHT_RGBW_UnPair($hash, $ramp) if ($hash->{LEDTYPE} eq 'RGBW');
     return MILIGHT_White_UnPair($hash, $ramp) if ($hash->{LEDTYPE} eq 'White');
@@ -243,143 +244,142 @@ MILIGHT_Set(@)
 
   elsif ($cmd eq 'on')
   {
-    MILIGHT_HighLevelCmdQueue_Clear($hash);
     if (defined($a[0]))
     {
-      return "usage: set $name on [seconds]" if ($a[0] !~ /^\d+$/);
+      return "Usage: set $name on <seconds(0..X)>" if ($a[0] !~ /^\d+$/);
       $ramp = $a[0];
     }
     elsif (defined($attr{$name}{defaultRampOn}))
     {
       $ramp = $attr{$name}{defaultRampOn};
     }
-    return MILIGHT_RGB_On($hash, $ramp) if ($hash->{LEDTYPE} eq 'RGB');
-    return MILIGHT_RGBW_On($hash, $ramp) if ($hash->{LEDTYPE} eq 'RGBW');
-    return MILIGHT_White_On($hash, $ramp) if ($hash->{LEDTYPE} eq 'White');
+    return MILIGHT_RGB_On($hash, $ramp, $flags) if ($hash->{LEDTYPE} eq 'RGB');
+    return MILIGHT_RGBW_On($hash, $ramp, $flags) if ($hash->{LEDTYPE} eq 'RGBW');
+    return MILIGHT_White_On($hash, $ramp, $flags) if ($hash->{LEDTYPE} eq 'White');
   }
 
   elsif ($cmd eq 'off')
   {
-    MILIGHT_HighLevelCmdQueue_Clear($hash);
     if (defined($a[0]))
     {
-      return "usage: set $name off [seconds]" if ($a[0] !~ /^\d+$/);
+      return "Usage: set $name off <seconds(0..X)>" if ($a[0] !~ /^\d+$/);
       $ramp = $a[0];
     }
     elsif (defined($attr{$name}{defaultRampOff}))
     {
       $ramp = $attr{$name}{defaultRampOff};
     }
-    return MILIGHT_RGB_Off($hash, $ramp) if ($hash->{LEDTYPE} eq 'RGB');
-    return MILIGHT_RGBW_Off($hash, $ramp) if ($hash->{LEDTYPE} eq 'RGBW');
-    return MILIGHT_White_Off($hash, $ramp) if ($hash->{LEDTYPE} eq 'White');
+    return MILIGHT_RGB_Off($hash, $ramp, $flags) if ($hash->{LEDTYPE} eq 'RGB');
+    return MILIGHT_RGBW_Off($hash, $ramp, $flags) if ($hash->{LEDTYPE} eq 'RGBW');
+    return MILIGHT_White_Off($hash, $ramp, $flags) if ($hash->{LEDTYPE} eq 'White');
   }
 
   elsif ($cmd eq 'dimup')
   {
-    return "usage: set $name dimup" if (defined($a[1]));
-    MILIGHT_HighLevelCmdQueue_Clear($hash);
-    my $v = ReadingsVal($hash->{NAME}, "brightness", 0) + (100 / MILIGHT_dimSteps($hash));
+    return "Usage: set $name dimup" if (defined($a[1]));
+    my $v = ReadingsVal($hash->{NAME}, "brightness", 0) + round(100 / MILIGHT_dimSteps($hash));
     $v = 100 if $v > 100;
-    return MILIGHT_RGB_Dim($hash, $v, 0, '') if ($hash->{LEDTYPE} eq 'RGB');
-    return MILIGHT_RGBW_Dim($hash, $v, 0, '') if ($hash->{LEDTYPE} eq 'RGBW');
-    return MILIGHT_White_Dim($hash, $v, 0, '') if ($hash->{LEDTYPE} eq 'White');
+    return MILIGHT_RGB_Dim($hash, $v, 0, $flags) if ($hash->{LEDTYPE} eq 'RGB');
+    return MILIGHT_RGBW_Dim($hash, $v, 0, $flags) if ($hash->{LEDTYPE} eq 'RGBW');
+    return MILIGHT_White_Dim($hash, $v, 0, $flags) if ($hash->{LEDTYPE} eq 'White');
   }
 
   elsif ($cmd eq 'dimdown')
   {
-    return "usage: set $name dimdown" if (defined($a[1]));
-    MILIGHT_HighLevelCmdQueue_Clear($hash);
+    return "Usage: set $name dimdown" if (defined($a[1]));
     my $v = ReadingsVal($hash->{NAME}, "brightness", 0) - (100 / MILIGHT_dimSteps($hash));
     $v = 0 if $v < 0;
-    return MILIGHT_RGB_Dim($hash, $v, 0, '') if ($hash->{LEDTYPE} eq 'RGB');
-    return MILIGHT_RGBW_Dim($hash, $v, 0, '') if ($hash->{LEDTYPE} eq 'RGBW');
-    return MILIGHT_White_Dim($hash, $v, 0, '') if ($hash->{LEDTYPE} eq 'White');
+    return MILIGHT_RGB_Dim($hash, $v, 0, $flags) if ($hash->{LEDTYPE} eq 'RGB');
+    return MILIGHT_RGBW_Dim($hash, $v, 0, $flags) if ($hash->{LEDTYPE} eq 'RGBW');
+    return MILIGHT_White_Dim($hash, $v, 0, $flags) if ($hash->{LEDTYPE} eq 'White');
   }
 
   elsif ($cmd eq 'dim')
   {
-    return "usage: set $name dim [percent]" if ($a[0] !~ /^\d+$/);
-    return "usage: set $name dim [percent]" if !($a[0] ~~ [0..100]);
+    $usage = "Usage: set $name dim <percent(0..100)> [seconds(0..x)] [flags(l=long path|q=don't clear queue)]";
+    return $usage if (($a[0] !~ /^\d+$/) || (!($a[0] ~~ [0..100]))); # Decimal value for percent between 0..100
     if (defined($a[1]))
     {
-      return "usage: set $name dim percent [seconds] flags" if ($a[1] !~ /^\d+$/);
+      return $usage if (($a[1] !~ /^\d+$/) && ($a[1] > 0)); # Decimal value for ramp > 0
       $ramp = $a[1];
     }
     if (defined($a[2]))
     {   
-      return "usage: set $name dim percent seconds [flags(q)]" if ($a[2] !~ m/.*[qQ].*/);
+      return $usage if ($a[2] !~ m/.*[lLqQ].*/); # Flags l=Long way round for transition, q=don't clear queue (add to end)
       $flags = $a[2];
     }
-    MILIGHT_HighLevelCmdQueue_Clear($hash) if ($flags !~ m/.*[qQ].*/);
     return MILIGHT_RGB_Dim($hash, $a[0], $ramp, $flags) if ($hash->{LEDTYPE} eq 'RGB');
     return MILIGHT_RGBW_Dim($hash, $a[0], $ramp, $flags) if ($hash->{LEDTYPE} eq 'RGBW');
     return MILIGHT_White_Dim($hash, $a[0], $ramp, $flags) if ($hash->{LEDTYPE} eq 'White');
   }
 
-  elsif (($cmd eq 'HSV') || ($cmd eq 'rgb'))
+  elsif( $cmd eq "rgb")
   {
-    my ($hue, $sat, $val);
-    
-    if ($cmd eq 'HSV')
-    {
-      return "HSV is required as h,s,v" if ($a[0] !~ /^\d{1,3},\d{1,3},\d{1,3}$/);
-      ($hue, $sat, $val) = split(',', $a[0]);
-      return "wrong hue ($hue): valid range 0..360" if !(($hue >= 0) && ($hue <= 360));
-      return "wrong saturation ($sat): valid range 0..100" if !(($sat >= 0) && ($sat <= 100));
-      return "wrong brightness ($val): valid range 0..100" if !(($val >= 0) && ($val <= 100));
-    }
-    elsif ($cmd eq 'rgb')
-    {
-      return "rgb is required hex RRGGBB" if ($a[0] !~ /^[0-9A-Fa-f]{6}$/);
-      ($hue, $sat, $val) = MILIGHT_RGB2HSV($hash, $a[0]);
-    }
-    
+    $usage = "Usage: set $name rgb RRGGBB [seconds(0..x)] [flags(l=long path|q=don't clear queue)]";
+    return $usage if ($a[0] !~ /^([0-9A-Fa-f]{1,2})([0-9A-Fa-f]{1,2})([0-9A-Fa-f]{1,2})$/);
+    my( $r, $g, $b ) = (hex($1)/255.0, hex($2)/255.0, hex($3)/255.0);
+    my( $h, $s, $v ) = Color::rgb2hsv($r,$g,$b);
     if (defined($a[1]))
     {
-      return "usage: set $name HSV H,S,V seconds flags" if ($a[1] !~ /^\d+$/);
+      return $usage if (($a[1] !~ /^\d+$/) && ($a[1] > 0)); # Decimal value for ramp > 0
       $ramp = $a[1];
     }
     if (defined($a[2]))
     {   
-      return "usage: set $name HSV H,S,V seconds [slq]" if ($a[2] !~ m/.*[sSlLqQ].*/);
+      return $usage if ($a[2] !~ m/.*[lLqQ].*/); # Flags l=Long way round for transition, q=don't clear queue (add to end)
       $flags = $a[2];
     }
-    MILIGHT_HighLevelCmdQueue_Clear($hash) if ($flags !~ m/.*[qQ].*/);
-    MILIGHT_HSV_Transition($hash, $hue, $sat, $val, $ramp, $flags, 100);
-    return MILIGHT_SetHSV_Target($hash, $hue, $sat, $val);
+    MILIGHT_HSV_Transition($hash, $h, $s, $v, $ramp, $flags, 100);
+    return MILIGHT_SetHSV_Target($hash, $h, $s, $v);    
+  }
+
+  elsif ($cmd eq 'hsv')
+  {
+    $usage = "Usage: set $name hsv <h(0..360)>,<s(0..100)>,<v(0..100)> [seconds(0..x)] [flags(l=long path|q=don't clear queue)]";
+    return $usage if ($a[0] !~ /^(\d{1,3}),(\d{1,3}),(\d{1,3})$/);
+    my ($h, $s, $v) = ($1, $2, $3);
+    return "Invalid hue ($h): valid range 0..360" if !(($hue >= 0) && ($hue <= 360));
+    return "Invalid saturation ($s): valid range 0..100" if !(($sat >= 0) && ($sat <= 100));
+    return "Invalid brightness ($v): valid range 0..100" if !(($val >= 0) && ($val <= 100));
+    if (defined($a[1]))
+    {
+      return $usage if (($a[1] !~ /^\d+$/) && ($a[1] > 0)); # Decimal value for ramp > 0
+      $ramp = $a[1];
+    }
+    if (defined($a[2]))
+    {   
+      return $usage if ($a[2] !~ m/.*[lLqQ].*/); # Flags l=Long way round for transition, q=don't clear queue (add to end)
+      $flags = $a[2];
+    }
+    MILIGHT_HSV_Transition($hash, $h, $s, $v, $ramp, $flags, 100);
+    return MILIGHT_SetHSV_Target($hash, $h, $s, $v);
   }
   
   elsif ($cmd eq 'discoModeUp')
   {
-    MILIGHT_HighLevelCmdQueue_Clear($hash);
     return MILIGHT_RGBW_DiscoModeStep($hash, 1);
   }
 
   elsif ($cmd eq 'discoModeDown')
   {
-    MILIGHT_HighLevelCmdQueue_Clear($hash);
     return MILIGHT_RGBW_DiscoModeStep($hash, 0);
   }
     
   elsif ($cmd eq 'discoSpeedUp')
   {
-    MILIGHT_HighLevelCmdQueue_Clear($hash);
     return MILIGHT_RGBW_DiscoModeSpeed($hash, 1);
   }
 
   elsif ($cmd eq 'discoSpeedDown')
   {
-    MILIGHT_HighLevelCmdQueue_Clear($hash);
     return MILIGHT_RGBW_DiscoModeSpeed($hash, 0);
   }
     
   elsif ($cmd eq 'colourtemp')
   {
-      MILIGHT_HighLevelCmdQueue_Clear($hash);
     if (defined($a[0]))
     {
-      return "usage: set $name colourTemperature [1=cooler..10=warmer]" if (($a[0] !~ /^\d+$/) || (!($a[0] ~~ [1..10])));
+      return "Usage: set $name colourTemperature <1=Cool..10=Warm>" if (($a[0] !~ /^\d+$/) || (!($a[0] ~~ [1..10])));
     }
     return MILIGHT_White_setColourTemp($hash, $a[0]);
   }
@@ -408,7 +408,7 @@ sub
 MILIGHT_Attr(@)
 {
   my ($cmd, $device, $attribName, $attribVal) = @_;
-  my $ledDevice = $defs{$device};
+  my $hash = $defs{$device};
 
   if ($cmd eq 'set' && $attribName eq 'dimStep')
   {
@@ -418,7 +418,7 @@ MILIGHT_Attr(@)
   {
     return "defaultRampOn/Off is required as numerical value [0..100]" if ($attribVal !~ /^\d*$/) || (($attribVal < 0) || ($attribVal > 100));
   }
-  Log3 ($ledDevice, 4, "$ledDevice->{NAME} attrib $attribName $cmd $attribVal"); 
+  Log3 ($hash, 4, "$hash->{NAME} attrib $attribName $cmd $attribVal"); 
   return undef;
 }
 
@@ -426,7 +426,7 @@ MILIGHT_Attr(@)
 sub
 MILIGHT_Notify(@)
 {
-  my ($ledDevice, $eventSrc) = @_;
+  my ($hash, $eventSrc) = @_;
   my $events = deviceEvents($eventSrc, 1);
   my ($hue, $sat, $val);
 
@@ -434,14 +434,14 @@ MILIGHT_Notify(@)
   if ($eventSrc->{NAME} eq 'global' && @{$events}[0] eq 'INITIALIZED')
   {
     # Default to OFF if not defined
-    $hue = defined($ledDevice->{READINGS}->{hue}->{VAL})?$ledDevice->{READINGS}->{hue}->{VAL}:0;
-    $sat = defined($ledDevice->{READINGS}->{saturation}->{VAL})?$ledDevice->{READINGS}->{saturation}->{VAL}:0;
-    $val = defined($ledDevice->{READINGS}->{brightness}->{VAL})?$ledDevice->{READINGS}->{brightness}->{VAL}:0;
+    $hue = defined($hash->{READINGS}->{hue}->{VAL})?$hash->{READINGS}->{hue}->{VAL}:0;
+    $sat = defined($hash->{READINGS}->{saturation}->{VAL})?$hash->{READINGS}->{saturation}->{VAL}:0;
+    $val = defined($hash->{READINGS}->{brightness}->{VAL})?$hash->{READINGS}->{brightness}->{VAL}:0;
     
     # Restore state
-    return MILIGHT_RGB_setHSV($ledDevice, $hue, $sat, $val) if ($ledDevice->{LEDTYPE} eq 'RGB');
-    return MILIGHT_RGBW_setHSV($ledDevice, $hue, $sat, $val) if ($ledDevice->{LEDTYPE} eq 'RGBW');
-    return MILIGHT_White_setHSV($ledDevice, $hue, $sat, $val) if ($ledDevice->{LEDTYPE} eq 'White');
+    return MILIGHT_RGB_setHSV($hash, $hue, $sat, $val) if ($hash->{LEDTYPE} eq 'RGB');
+    return MILIGHT_RGBW_setHSV($hash, $hue, $sat, $val) if ($hash->{LEDTYPE} eq 'RGBW');
+    return MILIGHT_White_setHSV($hash, $hue, $sat, $val) if ($hash->{LEDTYPE} eq 'White');
   }
   
   return undef;
@@ -457,14 +457,14 @@ MILIGHT_Notify(@)
 sub
 MILIGHT_RGB_Pair(@)
 {
-  my ($ledDevice, $numSeconds) = @_;
+  my ($hash, $numSeconds) = @_;
   $numSeconds = 3 if (($numSeconds || 0) == 0);
-  Log3 ($ledDevice, 3, "$ledDevice->{NAME} RGB LED slot $ledDevice->{SLOT} pair $numSeconds s"); 
+  Log3 ($hash, 3, "$hash->{NAME} RGB LED slot $hash->{SLOT} pair $numSeconds s"); 
   # find my slot and get my group-all-on cmd
   my $ctrl = "\x25\x00\x55";
   for (my $i = 0; $i < $numSeconds; $i++)
   { 
-    MILIGHT_HighLevelCmdQueue_Add($ledDevice, undef, undef, undef, $ctrl, 1000, undef);
+    MILIGHT_HighLevelCmdQueue_Add($hash, undef, undef, undef, $ctrl, 1000, undef);
   }
   return undef;
 }
@@ -472,17 +472,17 @@ MILIGHT_RGB_Pair(@)
 sub
 MILIGHT_RGB_UnPair(@)
 {
-  my ($ledDevice) = @_;
+  my ($hash) = @_;
   my $numSeconds = 8;
-  Log3 ($ledDevice, 3, "$ledDevice->{NAME} RGB LED slot $ledDevice->{SLOT} unpair $numSeconds s"); 
+  Log3 ($hash, 3, "$hash->{NAME} RGB LED slot $hash->{SLOT} unpair $numSeconds s"); 
   # find my slot and get my group-all-on cmd
   my $ctrl = "\x25\x00\x55";
   for (my $i = 0; $i < $numSeconds; $i++)
   { 
-    MILIGHT_HighLevelCmdQueue_Add($ledDevice, undef, undef, undef, $ctrl, 250, undef);
-    MILIGHT_HighLevelCmdQueue_Add($ledDevice, undef, undef, undef, $ctrl, 250, undef);
-    MILIGHT_HighLevelCmdQueue_Add($ledDevice, undef, undef, undef, $ctrl, 250, undef);
-    MILIGHT_HighLevelCmdQueue_Add($ledDevice, undef, undef, undef, $ctrl, 250, undef);
+    MILIGHT_HighLevelCmdQueue_Add($hash, undef, undef, undef, $ctrl, 250, undef);
+    MILIGHT_HighLevelCmdQueue_Add($hash, undef, undef, undef, $ctrl, 250, undef);
+    MILIGHT_HighLevelCmdQueue_Add($hash, undef, undef, undef, $ctrl, 250, undef);
+    MILIGHT_HighLevelCmdQueue_Add($hash, undef, undef, undef, $ctrl, 250, undef);
   }
   return undef;
 }
@@ -490,17 +490,17 @@ MILIGHT_RGB_UnPair(@)
 sub
 MILIGHT_RGB_On(@)
 {
-  my ($ledDevice, $ramp) = @_;
+  my ($hash, $ramp, $flags) = @_;
   my $v = 100;
-  Log3 ($ledDevice, 3, "$ledDevice->{NAME} RGB slot $ledDevice->{SLOT} set on $ramp");
+  Log3 ($hash, 3, "$hash->{NAME} RGB slot $hash->{SLOT} set on $ramp");
   # Switch on with same brightness it was switched off with, or max if undefined.
-  if (ReadingsVal($ledDevice->{NAME}, "state", "off") eq "off")
+  if (ReadingsVal($hash->{NAME}, "state", "off") eq "off")
   {
-    $v = ReadingsVal($ledDevice->{NAME}, "brightness_on", 100);
+    $v = ReadingsVal($hash->{NAME}, "brightness_on", 100);
   }
   else
   {
-    $v = ReadingsVal($ledDevice->{NAME}, "brightness", 100);
+    $v = ReadingsVal($hash->{NAME}, "brightness", 100);
   }
 
   # When turning on, make sure we request at least minimum dim step.
@@ -509,53 +509,53 @@ MILIGHT_RGB_On(@)
     $v = 100;
   }
 
-  return MILIGHT_RGB_Dim($ledDevice, $v, $ramp, ''); 
+  return MILIGHT_RGB_Dim($hash, $v, $ramp, $flags); 
 }
 
 sub
 MILIGHT_RGB_Off(@)
 {
-  my ($ledDevice, $ramp) = @_;
-  Log3 ($ledDevice, 3, "$ledDevice->{NAME} RGB slot $ledDevice->{SLOT} set off $ramp");
+  my ($hash, $ramp, $flags) = @_;
+  Log3 ($hash, 3, "$hash->{NAME} RGB slot $hash->{SLOT} set off $ramp");
   # Store value of brightness before turning off
   # "on" will be of the form "on 50" where 50 is current dimlevel
-  if (ReadingsVal($ledDevice->{NAME}, "state", "off") ne "off")
+  if (ReadingsVal($hash->{NAME}, "state", "off") ne "off")
   {
-    readingsBeginUpdate($ledDevice);
-    readingsBulkUpdate($ledDevice, "brightness_on", ReadingsVal($ledDevice->{NAME}, "brightness", 100));
-    readingsEndUpdate($ledDevice, 0);
+    readingsBeginUpdate($hash);
+    readingsBulkUpdate($hash, "brightness_on", ReadingsVal($hash->{NAME}, "brightness", 100));
+    readingsEndUpdate($hash, 0);
   }
-  return MILIGHT_RGB_Dim($ledDevice, 0, $ramp, '');
+  return MILIGHT_RGB_Dim($hash, 0, $ramp, $flags);
 }
 
 sub
 MILIGHT_RGB_Dim(@)
 {
-  my ($ledDevice, $level, $ramp, $flags) = @_;
-  my $h = ReadingsVal($ledDevice->{NAME}, "hue", 0);
-  my $s = ReadingsVal($ledDevice->{NAME}, "saturation", 0);
-  Log3 ($ledDevice, 3, "$ledDevice->{NAME} RGB slot $ledDevice->{SLOT} dim $level $ramp $flags"); 
-  return MILIGHT_HSV_Transition($ledDevice, $h, $s, $level, $ramp, $flags, 500);
+  my ($hash, $level, $ramp, $flags) = @_;
+  my $h = ReadingsVal($hash->{NAME}, "hue", 0);
+  my $s = ReadingsVal($hash->{NAME}, "saturation", 0);
+  Log3 ($hash, 3, "$hash->{NAME} RGB slot $hash->{SLOT} dim $level $ramp $flags"); 
+  return MILIGHT_HSV_Transition($hash, $h, $s, $level, $ramp, $flags, 500);
 }
 
 sub
 MILIGHT_RGB_setHSV(@)
 {
-  my ($ledDevice, $hue, $sat, $val) = @_;
-  Log3 ($ledDevice, 4, "$ledDevice->{NAME} RGB slot $ledDevice->{SLOT} set h:$hue, s:$sat, v:$val"); 
+  my ($hash, $hue, $sat, $val) = @_;
+  Log3 ($hash, 4, "$hash->{NAME} RGB slot $hash->{SLOT} set h:$hue, s:$sat, v:$val"); 
   $sat = 100;
-  MILIGHT_setHSV_Readings($ledDevice, $hue, $sat, $val);
+  MILIGHT_setHSV_Readings($hash, $hue, $sat, $val);
   # convert to device specs
-  my ($cv, $cl, $wl) = MILIGHT_RGB_ColorConverter($ledDevice, $hue, $sat, $val);
-  Log3 ($ledDevice, 4, "$ledDevice->{NAME} RGB slot $ledDevice->{SLOT} set levels: $cv, $cl, $wl");
-  return MILIGHT_RGB_setLevels($ledDevice, $cv, $cl, $wl);
+  my ($cv, $cl, $wl) = MILIGHT_RGB_ColorConverter($hash, $hue, $sat, $val);
+  Log3 ($hash, 4, "$hash->{NAME} RGB slot $hash->{SLOT} set levels: $cv, $cl, $wl");
+  return MILIGHT_RGB_setLevels($hash, $cv, $cl, $wl);
 }
 
 sub
 MILIGHT_RGB_setLevels(@)
 {
-  my ($ledDevice, $cv, $cl, $wl) = @_;
-  my $receiver = sockaddr_in($ledDevice->{PORT}, inet_aton($ledDevice->{IP}));
+  my ($hash, $cv, $cl, $wl) = @_;
+  my $receiver = sockaddr_in($hash->{PORT}, inet_aton($hash->{IP}));
   my $delay = 100;
   my $lock = 0;
 
@@ -563,71 +563,71 @@ MILIGHT_RGB_setLevels(@)
   # lock ll queue to prevent a bottleneck within llqueue
   # in cases where the high level queue fills the low level queue (which should not be interrupted) faster then it is processed (send out)
   # this lock will cause the hlexec intentionally drop frames which can safely be done because there are further frames for processing avialable  
-  if ((($ledDevice->{helper}->{colorValue} != $cv) && ($cl > 0)) || ($ledDevice->{helper}->{colorLevel} != $cl) || ($ledDevice->{helper}->{whiteLevel} != $wl))
+  if ((($hash->{helper}->{colorValue} != $cv) && ($cl > 0)) || ($hash->{helper}->{colorLevel} != $cl) || ($hash->{helper}->{whiteLevel} != $wl))
   {
-    $ledDevice->{helper}->{llLock} += 1;
+    $hash->{helper}->{llLock} += 1;
     $lock = 1;
   }
   # need to touch color value (only if visible) or color level ?
-  if ((($ledDevice->{helper}->{colorValue} != $cv) && ($cl > 0)) || $ledDevice->{helper}->{colorLevel} != $cl)
+  if ((($hash->{helper}->{colorValue} != $cv) && ($cl > 0)) || $hash->{helper}->{colorLevel} != $cl)
   {
     # if color all off switch on
-    if ($ledDevice->{helper}->{mode} == 0)
+    if ($hash->{helper}->{mode} == 0)
     {
-      MILIGHT_LowLevelCmdQueue_Add($ledDevice, "\x22\x00\x55", $receiver, $delay); # switch on
-      MILIGHT_LowLevelCmdQueue_Add($ledDevice, "\x20".chr($cv)."\x55", $receiver, $delay); # set color
-      $ledDevice->{helper}->{colorValue} = $cv;
-      $ledDevice->{helper}->{colorLevel} = 1;
-      $ledDevice->{helper}->{mode} = 2;
+      MILIGHT_LowLevelCmdQueue_Add($hash, "\x22\x00\x55", $receiver, $delay); # switch on
+      MILIGHT_LowLevelCmdQueue_Add($hash, "\x20".chr($cv)."\x55", $receiver, $delay); # set color
+      $hash->{helper}->{colorValue} = $cv;
+      $hash->{helper}->{colorLevel} = 1;
+      $hash->{helper}->{mode} = 2;
     }
-    elsif ($ledDevice->{helper}->{mode} == 1)
+    elsif ($hash->{helper}->{mode} == 1)
     {
-      MILIGHT_LowLevelCmdQueue_Add($ledDevice, "\x20".chr($cv)."\x55", $receiver, $delay); # set color
-      $ledDevice->{helper}->{colorValue} = $cv;
-      $ledDevice->{helper}->{mode} = 2;
+      MILIGHT_LowLevelCmdQueue_Add($hash, "\x20".chr($cv)."\x55", $receiver, $delay); # set color
+      $hash->{helper}->{colorValue} = $cv;
+      $hash->{helper}->{mode} = 2;
     }
     else
     {
-      $ledDevice->{helper}->{colorValue} = $cv;
-      MILIGHT_LowLevelCmdQueue_Add($ledDevice, "\x20".chr($cv)."\x55", $receiver, $delay); # set color
+      $hash->{helper}->{colorValue} = $cv;
+      MILIGHT_LowLevelCmdQueue_Add($hash, "\x20".chr($cv)."\x55", $receiver, $delay); # set color
     }
     # cl decrease
-    if ($ledDevice->{helper}->{colorLevel} > $cl)
+    if ($hash->{helper}->{colorLevel} > $cl)
     {
-      for (my $i=$ledDevice->{helper}->{colorLevel}; $i > $cl; $i--) 
+      for (my $i=$hash->{helper}->{colorLevel}; $i > $cl; $i--) 
       {
-        MILIGHT_LowLevelCmdQueue_Add($ledDevice, "\x24\x00\x55", $receiver, $delay); # brightness down
-        $ledDevice->{helper}->{colorLevel} = $i - 1;
+        MILIGHT_LowLevelCmdQueue_Add($hash, "\x24\x00\x55", $receiver, $delay); # brightness down
+        $hash->{helper}->{colorLevel} = $i - 1;
       }
       if ($cl == 0)
       {
         # need to switch off color
         # if no white is required and no white is active we can must entirely switch off
-        MILIGHT_LowLevelCmdQueue_Add($ledDevice, "\x21\x00\x55", $receiver, $delay); # switch off
-        $ledDevice->{helper}->{colorLevel} = 0;
-        $ledDevice->{helper}->{mode} = 0;
+        MILIGHT_LowLevelCmdQueue_Add($hash, "\x21\x00\x55", $receiver, $delay); # switch off
+        $hash->{helper}->{colorLevel} = 0;
+        $hash->{helper}->{mode} = 0;
       }
     }
     # cl inrease
-    if ($ledDevice->{helper}->{colorLevel} < $cl)
+    if ($hash->{helper}->{colorLevel} < $cl)
     {
-      for (my $i=$ledDevice->{helper}->{colorLevel}; $i < $cl; $i++)
+      for (my $i=$hash->{helper}->{colorLevel}; $i < $cl; $i++)
       {
-        MILIGHT_LowLevelCmdQueue_Add($ledDevice, "\x23\x00\x55", $receiver, $delay); # brightness up
-        $ledDevice->{helper}->{colorLevel} = $i + 1;
+        MILIGHT_LowLevelCmdQueue_Add($hash, "\x23\x00\x55", $receiver, $delay); # brightness up
+        $hash->{helper}->{colorLevel} = $i + 1;
       }
     }
   }
   # unlock ll queue
-  MILIGHT_LowLevelCmdQueue_Add($ledDevice, "\x00", $receiver, 0, 1) if $lock;
+  MILIGHT_LowLevelCmdQueue_Add($hash, "\x00", $receiver, 0, 1) if $lock;
   return undef;
 }
 
 sub
 MILIGHT_RGB_ColorConverter(@)
 {
-  my ($ledDevice, $h, $s, $v) = @_;
-  my $color = $ledDevice->{helper}->{COLORMAP}[$h % 360];
+  my ($hash, $h, $s, $v) = @_;
+  my $color = $hash->{helper}->{COLORMAP}[$h % 360];
   
   # there are 0..9 dim level, setup correction
   my $valueSpread = 100/9;
@@ -648,15 +648,15 @@ MILIGHT_RGB_ColorConverter(@)
 sub
 MILIGHT_RGBW_Pair(@)
 {
-  my ($ledDevice, $numSeconds) = @_;
+  my ($hash, $numSeconds) = @_;
   $numSeconds = 3 if (($numSeconds || 0) == 0);
   my @bulbCmdsOn = ("\x45", "\x47", "\x49", "\x4B");
-  Log3 ($ledDevice, 3, "$ledDevice->{NAME}, $ledDevice->{LEDTYPE} at $ledDevice->{CONNECTION}, slot $ledDevice->{SLOT}: pair $numSeconds"); 
+  Log3 ($hash, 3, "$hash->{NAME}, $hash->{LEDTYPE} at $hash->{CONNECTION}, slot $hash->{SLOT}: pair $numSeconds"); 
   # find my slot and get my group-all-on cmd
-  my $ctrl = @bulbCmdsOn[$ledDevice->{SLOT} -5]."\x00\x55";
+  my $ctrl = @bulbCmdsOn[$hash->{SLOT} -5]."\x00\x55";
   for (my $i = 0; $i < $numSeconds; $i++)
   { 
-    MILIGHT_HighLevelCmdQueue_Add($ledDevice, undef, undef, undef, $ctrl, 1000, undef);
+    MILIGHT_HighLevelCmdQueue_Add($hash, undef, undef, undef, $ctrl, 1000, undef);
   }
   return undef;
 }
@@ -664,19 +664,19 @@ MILIGHT_RGBW_Pair(@)
 sub
 MILIGHT_RGBW_UnPair(@)
 {
-  my ($ledDevice, $numSeconds, $releaseFromSlot) = @_;
+  my ($hash, $numSeconds, $releaseFromSlot) = @_;
   $numSeconds = 5;
   my @bulbCmdsOn = ("\x45", "\x47", "\x49", "\x4B");
-  Log3 ($ledDevice, 3, "$ledDevice->{NAME}, $ledDevice->{LEDTYPE} at $ledDevice->{CONNECTION}, slot $ledDevice->{SLOT}: unpair $numSeconds"); 
+  Log3 ($hash, 3, "$hash->{NAME}, $hash->{LEDTYPE} at $hash->{CONNECTION}, slot $hash->{SLOT}: unpair $numSeconds"); 
   # find my slot and get my group-all-on cmd
-  my $onCtrl = @bulbCmdsOn[$ledDevice->{SLOT} -5]."\x00\x55";
+  my $onCtrl = @bulbCmdsOn[$hash->{SLOT} -5]."\x00\x55";
   my $fullOnCtrl = "\x4E\x1B\x55";
   for (my $i = 0; $i < $numSeconds; $i++)
   { 
-    MILIGHT_HighLevelCmdQueue_Add($ledDevice, undef, undef, undef, $onCtrl, 250, undef);
-    MILIGHT_HighLevelCmdQueue_Add($ledDevice, undef, undef, undef, $fullOnCtrl, 250, undef);
-    MILIGHT_HighLevelCmdQueue_Add($ledDevice, undef, undef, undef, $fullOnCtrl, 250, undef);
-    MILIGHT_HighLevelCmdQueue_Add($ledDevice, undef, undef, undef, $fullOnCtrl, 250, undef);
+    MILIGHT_HighLevelCmdQueue_Add($hash, undef, undef, undef, $onCtrl, 250, undef);
+    MILIGHT_HighLevelCmdQueue_Add($hash, undef, undef, undef, $fullOnCtrl, 250, undef);
+    MILIGHT_HighLevelCmdQueue_Add($hash, undef, undef, undef, $fullOnCtrl, 250, undef);
+    MILIGHT_HighLevelCmdQueue_Add($hash, undef, undef, undef, $fullOnCtrl, 250, undef);
   }
   return undef;
 }
@@ -684,17 +684,17 @@ MILIGHT_RGBW_UnPair(@)
 sub
 MILIGHT_RGBW_On(@)
 {
-  my ($ledDevice, $ramp) = @_;
+  my ($hash, $ramp, $flags) = @_;
   my $v = 100;
-  Log3 ($ledDevice, 3, "$ledDevice->{NAME} RGBW slot $ledDevice->{SLOT} set on $ramp");
+  Log3 ($hash, 3, "$hash->{NAME} RGBW slot $hash->{SLOT} set on $ramp");
   # Switch on with same brightness it was switched off with, or max if undefined.
-  if (ReadingsVal($ledDevice->{NAME}, "state", "off") eq "off")
+  if (ReadingsVal($hash->{NAME}, "state", "off") eq "off")
   {
-    $v = ReadingsVal($ledDevice->{NAME}, "brightness_on", 100);
+    $v = ReadingsVal($hash->{NAME}, "brightness_on", 100);
   }
   else
   {
-    $v = ReadingsVal($ledDevice->{NAME}, "brightness", 100);
+    $v = ReadingsVal($hash->{NAME}, "brightness", 100);
   }
   # When turning on, make sure we request at least minimum dim step.
   if ($v < round(100/MILIGHT_dimSteps($hash)))
@@ -702,48 +702,48 @@ MILIGHT_RGBW_On(@)
     $v = 100;
   }
 
-  return MILIGHT_RGBW_Dim($ledDevice, $v, $ramp, ''); 
+  return MILIGHT_RGBW_Dim($hash, $v, $ramp, $flags); 
 }
 
 sub
 MILIGHT_RGBW_Off(@)
 {
-  my ($ledDevice, $ramp) = @_;
-  Log3 ($ledDevice, 3, "$ledDevice->{NAME} RGBW slot $ledDevice->{SLOT} set off $ramp");
+  my ($hash, $ramp, $flags) = @_;
+  Log3 ($hash, 3, "$hash->{NAME} RGBW slot $hash->{SLOT} set off $ramp");
   # Store value of brightness before turning off
   # "on" will be of the form "on 50" where 50 is current dimlevel
-  if (ReadingsVal($ledDevice->{NAME}, "state", "off") ne "off")
+  if (ReadingsVal($hash->{NAME}, "state", "off") ne "off")
   {
-    readingsBeginUpdate($ledDevice);
-    readingsBulkUpdate($ledDevice, "brightness_on", ReadingsVal($ledDevice->{NAME}, "brightness", 100));
-    readingsEndUpdate($ledDevice, 0);
+    readingsBeginUpdate($hash);
+    readingsBulkUpdate($hash, "brightness_on", ReadingsVal($hash->{NAME}, "brightness", 100));
+    readingsEndUpdate($hash, 0);
   }
-  return MILIGHT_RGBW_Dim($ledDevice, 0, $ramp, '');
+  return MILIGHT_RGBW_Dim($hash, 0, $ramp, $flags);
 }
 
 sub
 MILIGHT_RGBW_Dim(@)
 {
-  my ($ledDevice, $level, $ramp, $flags) = @_;
-  my $h = ReadingsVal($ledDevice->{NAME}, "hue", 0);
-  my $s = ReadingsVal($ledDevice->{NAME}, "saturation", 0);
-  Log3 ($ledDevice, 3, "$ledDevice->{NAME} RGBW slot $ledDevice->{SLOT} dim $level $ramp ". $flags || ''); 
-  return MILIGHT_HSV_Transition($ledDevice, $h, $s, $level, $ramp, $flags, 100);
+  my ($hash, $level, $ramp, $flags) = @_;
+  my $h = ReadingsVal($hash->{NAME}, "hue", 0);
+  my $s = ReadingsVal($hash->{NAME}, "saturation", 0);
+  Log3 ($hash, 3, "$hash->{NAME} RGBW slot $hash->{SLOT} dim $level $ramp ". $flags || ''); 
+  return MILIGHT_HSV_Transition($hash, $h, $s, $level, $ramp, $flags, 100);
 }
 
 sub
 MILIGHT_RGBW_setHSV(@)
 {
-  my ($ledDevice, $hue, $sat, $val) = @_;
+  my ($hash, $hue, $sat, $val) = @_;
   my ($cl, $wl);
 
   my @bulbCmdsOn = ("\x45", "\x47", "\x49", "\x4B");
   my @bulbCmdsOff = ("\x46", "\x48", "\x4A", "\x4C");
   my @bulbCmdsWT = ("\xC5", "\xC7", "\xC9", "\xCB");
 
-  my $receiver = sockaddr_in($ledDevice->{PORT}, inet_aton($ledDevice->{IP}));
+  my $receiver = sockaddr_in($hash->{PORT}, inet_aton($hash->{IP}));
   my $delay = 100;
-  my $cv = $ledDevice->{helper}->{COLORMAP}[$hue % 360];
+  my $cv = $hash->{helper}->{COLORMAP}[$hue % 360];
 
   # mode 0 = off, 1 = color, 2 = white, 3 = disco
   # brightness 2..27 (x02..x1b) | 25 dim levels
@@ -761,46 +761,46 @@ MILIGHT_RGBW_setHSV(@)
     $sat = 100;
   }
   
-  Log3 ($ledDevice, 3, "DEBUG: wl $wl cl $cl");
+  Log3 ($hash, 3, "DEBUG: wl $wl cl $cl");
   # Set readings in FHEM
-  MILIGHT_setHSV_Readings($ledDevice, $hue, $sat, $val);
+  MILIGHT_setHSV_Readings($hash, $hue, $sat, $val);
 
   # lock ll queue to prevent a bottleneck within llqueue
   # in cases where the high level queue fills the low level queue (which should not be interrupted) faster then it is processed (send out)
   # this lock will cause the hlexec intentionally drop frames which can safely be done because there are further frames for processing avialable  
-  $ledDevice->{helper}->{llLock} += 1;
-  Log3 ($ledDevice, 5, "$ledDevice->{NAME} RGBW slot $ledDevice->{SLOT} lock queue ".$ledDevice->{helper}->{llLock});
+  $hash->{helper}->{llLock} += 1;
+  Log3 ($hash, 5, "$hash->{NAME} RGBW slot $hash->{SLOT} lock queue ".$hash->{helper}->{llLock});
 
   # Off is shifted to "2" above so check for < 3
   if (($wl < 3) && ($cl < 3)) # off
   {
-    MILIGHT_LowLevelCmdQueue_Add($ledDevice, @bulbCmdsOff[$ledDevice->{SLOT} -5]."\x00\x55", $receiver, $delay); # group off
-    $ledDevice->{helper}->{whiteLevel} = 0;
-    $ledDevice->{helper}->{colorLevel} = 0;
-    $ledDevice->{helper}->{mode} = 0; # group off
+    MILIGHT_LowLevelCmdQueue_Add($hash, @bulbCmdsOff[$hash->{SLOT} -5]."\x00\x55", $receiver, $delay); # group off
+    $hash->{helper}->{whiteLevel} = 0;
+    $hash->{helper}->{colorLevel} = 0;
+    $hash->{helper}->{mode} = 0; # group off
   }
   else # on
   {
-    MILIGHT_LowLevelCmdQueue_Add($ledDevice, @bulbCmdsOn[$ledDevice->{SLOT} -5]."\x00\x55", $receiver, $delay) if (($wl > 0) || ($cl > 0)); # group on
+    MILIGHT_LowLevelCmdQueue_Add($hash, @bulbCmdsOn[$hash->{SLOT} -5]."\x00\x55", $receiver, $delay) if (($wl > 0) || ($cl > 0)); # group on
     if ($wl > 0) # white
     {
-      MILIGHT_LowLevelCmdQueue_Add($ledDevice, @bulbCmdsWT[$ledDevice->{SLOT} -5]."\x00\x55", $receiver, $delay); # white
-      MILIGHT_LowLevelCmdQueue_Add($ledDevice, "\x4E".chr($wl)."\x55", $receiver, $delay); # brightness
-      $ledDevice->{helper}->{mode} = 2; # white
+      MILIGHT_LowLevelCmdQueue_Add($hash, @bulbCmdsWT[$hash->{SLOT} -5]."\x00\x55", $receiver, $delay); # white
+      MILIGHT_LowLevelCmdQueue_Add($hash, "\x4E".chr($wl)."\x55", $receiver, $delay); # brightness
+      $hash->{helper}->{mode} = 2; # white
     }
     elsif ($cl > 0) # color
     {
-      MILIGHT_LowLevelCmdQueue_Add($ledDevice, "\x40".chr($cv)."\x55", $receiver, $delay); # color
-      MILIGHT_LowLevelCmdQueue_Add($ledDevice, "\x4E".chr($cl)."\x55", $receiver, $delay); # brightness
-      $ledDevice->{helper}->{mode} = 1; # color
+      MILIGHT_LowLevelCmdQueue_Add($hash, "\x40".chr($cv)."\x55", $receiver, $delay); # color
+      MILIGHT_LowLevelCmdQueue_Add($hash, "\x4E".chr($cl)."\x55", $receiver, $delay); # brightness
+      $hash->{helper}->{mode} = 1; # color
     }
 
-    $ledDevice->{helper}->{colorValue} = $cv;
-    $ledDevice->{helper}->{colorLevel} = $cl;
-    $ledDevice->{helper}->{whiteLevel} = $wl;
+    $hash->{helper}->{colorValue} = $cv;
+    $hash->{helper}->{colorLevel} = $cl;
+    $hash->{helper}->{whiteLevel} = $wl;
   }
   # unlock ll queue after complete cmd is send
-  MILIGHT_LowLevelCmdQueue_Add($ledDevice, "\x00", $receiver, 0, 1);
+  MILIGHT_LowLevelCmdQueue_Add($hash, "\x00", $receiver, 0, 1);
   
   return undef;
 }
@@ -808,85 +808,89 @@ MILIGHT_RGBW_setHSV(@)
 sub
 MILIGHT_RGBW_DiscoModeStep(@)
 {
-  my ($ledDevice, $step) = @_;
+  my ($hash, $step) = @_;
   
   my @bulbCmdsOn = ("\x45", "\x47", "\x49", "\x4B");
 
-  my $receiver = sockaddr_in($ledDevice->{PORT}, inet_aton($ledDevice->{IP}));
+  my $receiver = sockaddr_in($hash->{PORT}, inet_aton($hash->{IP}));
   my $delay = 100;
+  
+  MILIGHT_HighLevelCmdQueue_Clear($hash);
   
   $step = 0 if ($step < 0);
   $step = 1 if ($step > 1);
   
   # Set readings in FHEM
-  MILIGHT_setDisco_Readings($ledDevice, $step, ReadingsVal($ledDevice->{NAME}, 'discoSpeed', 5));
+  MILIGHT_setDisco_Readings($hash, $step, ReadingsVal($hash->{NAME}, 'discoSpeed', 5));
 
   # lock ll queue to prevent a bottleneck within llqueue
   # in cases where the high level queue fills the low level queue (which should not be interrupted) faster then it is processed (send out)
   # this lock will cause the hlexec intentionally drop frames which can safely be done because there are further frames for processing avialable  
-  $ledDevice->{helper}->{llLock} += 1;
-  Log3 ($ledDevice, 5, "$ledDevice->{NAME} RGBW slot $ledDevice->{SLOT} lock queue ".$ledDevice->{helper}->{llLock});
+  $hash->{helper}->{llLock} += 1;
+  Log3 ($hash, 5, "$hash->{NAME} RGBW slot $hash->{SLOT} lock queue ".$hash->{helper}->{llLock});
 
-  MILIGHT_LowLevelCmdQueue_Add($ledDevice, "\x22\x00\x55", $receiver, $delay) if (($ledDevice->{LEDTYPE} eq 'RGB')); # switch on
-  MILIGHT_LowLevelCmdQueue_Add($ledDevice, @bulbCmdsOn[$ledDevice->{SLOT} -5]."\x00\x55", $receiver, $delay) if (($ledDevice->{LEDTYPE} eq 'RGBW')); # group on
+  MILIGHT_LowLevelCmdQueue_Add($hash, "\x22\x00\x55", $receiver, $delay) if (($hash->{LEDTYPE} eq 'RGB')); # switch on
+  MILIGHT_LowLevelCmdQueue_Add($hash, @bulbCmdsOn[$hash->{SLOT} -5]."\x00\x55", $receiver, $delay) if (($hash->{LEDTYPE} eq 'RGBW')); # group on
 
   if ($step == 1)
   {
-      MILIGHT_LowLevelCmdQueue_Add($ledDevice, "\x27\x00\x55", $receiver, $delay) if (($ledDevice->{LEDTYPE} eq 'RGB')); # discoMode step up
-      MILIGHT_LowLevelCmdQueue_Add($ledDevice, "\x4D\x00\x55", $receiver, $delay) if (($ledDevice->{LEDTYPE} eq 'RGBW')); # discoMode step up
+      MILIGHT_LowLevelCmdQueue_Add($hash, "\x27\x00\x55", $receiver, $delay) if (($hash->{LEDTYPE} eq 'RGB')); # discoMode step up
+      MILIGHT_LowLevelCmdQueue_Add($hash, "\x4D\x00\x55", $receiver, $delay) if (($hash->{LEDTYPE} eq 'RGBW')); # discoMode step up
   }
   elsif ($step == 0)
   {
-    MILIGHT_LowLevelCmdQueue_Add($ledDevice, "\x28\x00\x55", $receiver, $delay); # discoMode step down
+    MILIGHT_LowLevelCmdQueue_Add($hash, "\x28\x00\x55", $receiver, $delay); # discoMode step down
   }
   
-  $ledDevice->{helper}->{mode} = 3; # disco
+  $hash->{helper}->{mode} = 3; # disco
 
   # unlock ll queue after complete cmd is send
-  MILIGHT_LowLevelCmdQueue_Add($ledDevice, "\x00", $receiver, 0, 1);
+  MILIGHT_LowLevelCmdQueue_Add($hash, "\x00", $receiver, 0, 1);
   
   return undef;
 }
 sub
 MILIGHT_RGBW_DiscoModeSpeed(@)
 {
-  my ($ledDevice, $speed) = @_;
+  my ($hash, $speed) = @_;
 
   my @bulbCmdsOn = ("\x45", "\x47", "\x49", "\x4B");
 
-  my $receiver = sockaddr_in($ledDevice->{PORT}, inet_aton($ledDevice->{IP}));
+  my $receiver = sockaddr_in($hash->{PORT}, inet_aton($hash->{IP}));
   my $delay = 100;
+
+  MILIGHT_HighLevelCmdQueue_Clear($hash);
   
   $speed = 0 if ($speed < 0);
   $speed = 1 if ($speed > 1);
   
   # Set readings in FHEM
-  MILIGHT_setDisco_Readings($ledDevice, ReadingsVal($ledDevice->{NAME}, 'discoMode', 1), $speed);
+  MILIGHT_setDisco_Readings($hash, ReadingsVal($hash->{NAME}, 'discoMode', 1), $speed);
   
   # lock ll queue to prevent a bottleneck within llqueue
   # in cases where the high level queue fills the low level queue (which should not be interrupted) faster then it is processed (send out)
   # this lock will cause the hlexec intentionally drop frames which can safely be done because there are further frames for processing avialable  
-  $ledDevice->{helper}->{llLock} += 1;
-  Log3 ($ledDevice, 5, "$ledDevice->{NAME} RGBW slot $ledDevice->{SLOT} lock queue ".$ledDevice->{helper}->{llLock});
+  $hash->{helper}->{llLock} += 1;
+  Log3 ($hash, 5, "$hash->{NAME} RGBW slot $hash->{SLOT} lock queue ".$hash->{helper}->{llLock});
 
-  MILIGHT_LowLevelCmdQueue_Add($ledDevice, "\x22\x00\x55", $receiver, $delay) if (($ledDevice->{LEDTYPE} eq 'RGB')); # switch on
-  MILIGHT_LowLevelCmdQueue_Add($ledDevice, @bulbCmdsOn[$ledDevice->{SLOT} -5]."\x00\x55", $receiver, $delay) if (($ledDevice->{LEDTYPE} eq 'RGBW')); # group on
+  MILIGHT_LowLevelCmdQueue_Add($hash, "\x22\x00\x55", $receiver, $delay) if (($hash->{LEDTYPE} eq 'RGB')); # switch on
+  MILIGHT_LowLevelCmdQueue_Add($hash, @bulbCmdsOn[$hash->{SLOT} -5]."\x00\x55", $receiver, $delay) if (($hash->{LEDTYPE} eq 'RGBW')); # group on
 
   if ($speed == 1)
   {
-    MILIGHT_LowLevelCmdQueue_Add($ledDevice, "\x25\x00\x55", $receiver, $delay) if ($ledDevice->{LEDTYPE} eq 'RGB'); # discoMode speed up
-    MILIGHT_LowLevelCmdQueue_Add($ledDevice, "\x44\x00\x55", $receiver, $delay) if ($ledDevice->{LEDTYPE} eq 'RGBW'); # discoMode speed up
+    MILIGHT_LowLevelCmdQueue_Add($hash, "\x25\x00\x55", $receiver, $delay) if ($hash->{LEDTYPE} eq 'RGB'); # discoMode speed up
+    MILIGHT_LowLevelCmdQueue_Add($hash, "\x44\x00\x55", $receiver, $delay) if ($hash->{LEDTYPE} eq 'RGBW'); # discoMode speed up
   }
   elsif ($speed == 0)
   {
-    MILIGHT_LowLevelCmdQueue_Add($ledDevice, "\x26\x00\x55", $receiver, $delay) if ($ledDevice->{LEDTYPE} eq 'RGB'); # discoMode speed down
-    MILIGHT_LowLevelCmdQueue_Add($ledDevice, "\x43\x00\x55", $receiver, $delay) if ($ledDevice->{LEDTYPE} eq 'RGBW'); # discoMode speed down
+    MILIGHT_LowLevelCmdQueue_Add($hash, "\x26\x00\x55", $receiver, $delay) if ($hash->{LEDTYPE} eq 'RGB'); # discoMode speed down
+    MILIGHT_LowLevelCmdQueue_Add($hash, "\x43\x00\x55", $receiver, $delay) if ($hash->{LEDTYPE} eq 'RGBW'); # discoMode speed down
   }
 
-  $ledDevice->{helper}->{mode} = 3; # disco
+  $hash->{helper}->{mode} = 3; # disco
 
   # unlock ll queue after complete cmd is send
-  MILIGHT_LowLevelCmdQueue_Add($ledDevice, "\x00", $receiver, 0, 1);
+  MILIGHT_LowLevelCmdQueue_Add($hash, "\x00", $receiver, 0, 1);
   
   return undef;
 }
@@ -901,15 +905,15 @@ MILIGHT_RGBW_DiscoModeSpeed(@)
 sub
 MILIGHT_White_Pair(@)
 {
-  my ($ledDevice, $numSeconds) = @_;
+  my ($hash, $numSeconds) = @_;
   $numSeconds = 1 if !(defined($numSeconds));
   my @bulbCmdsOn = ("\x38", "\x3D", "\x37", "\x32");
-  Log3 ($ledDevice, 3, "$ledDevice->{NAME}, $ledDevice->{LEDTYPE} at $ledDevice->{CONNECTION}, slot $ledDevice->{SLOT}: pair $numSeconds");
+  Log3 ($hash, 3, "$hash->{NAME}, $hash->{LEDTYPE} at $hash->{CONNECTION}, slot $hash->{SLOT}: pair $numSeconds");
   # find my slot and get my group-all-on cmd
-  my $ctrl = @bulbCmdsOn[$ledDevice->{SLOT} -1]."\x00\x55";
+  my $ctrl = @bulbCmdsOn[$hash->{SLOT} -1]."\x00\x55";
   for (my $i = 0; $i < $numSeconds; $i++)
   { 
-    MILIGHT_HighLevelCmdQueue_Add($ledDevice, undef, undef, undef, $ctrl, 1000, undef);
+    MILIGHT_HighLevelCmdQueue_Add($hash, undef, undef, undef, $ctrl, 1000, undef);
   }
   return undef;
 }
@@ -917,20 +921,20 @@ MILIGHT_White_Pair(@)
 sub
 MILIGHT_White_UnPair(@)
 {
-  my ($ledDevice, $numSeconds, $releaseFromSlot) = @_;
+  my ($hash, $numSeconds, $releaseFromSlot) = @_;
   $numSeconds = 5;
   my @bulbCmdsOn = ("\x38", "\x3D", "\x37", "\x32");
   my @bulbCmdsOnFull = ("\xB8", "\xBD", "\xB7", "\xB2");
-  Log3 ($ledDevice, 3, "$ledDevice->{NAME}, $ledDevice->{LEDTYPE} at $ledDevice->{CONNECTION}, slot $ledDevice->{SLOT}: unpair $numSeconds"); 
+  Log3 ($hash, 3, "$hash->{NAME}, $hash->{LEDTYPE} at $hash->{CONNECTION}, slot $hash->{SLOT}: unpair $numSeconds"); 
   # find my slot and get my group-all-on cmd
-  my $onCtrl = @bulbCmdsOn[$ledDevice->{SLOT} -1]."\x00\x55";
-  my $fullOnCtrl = @bulbCmdsOnFull[$ledDevice->{SLOT} -1]."\x00\x55";
+  my $onCtrl = @bulbCmdsOn[$hash->{SLOT} -1]."\x00\x55";
+  my $fullOnCtrl = @bulbCmdsOnFull[$hash->{SLOT} -1]."\x00\x55";
   for (my $i = 0; $i < $numSeconds; $i++)
   { 
-    MILIGHT_HighLevelCmdQueue_Add($ledDevice, undef, undef, undef, $onCtrl, 250, undef);
-    MILIGHT_HighLevelCmdQueue_Add($ledDevice, undef, undef, undef, $fullOnCtrl, 250, undef);
-    MILIGHT_HighLevelCmdQueue_Add($ledDevice, undef, undef, undef, $fullOnCtrl, 250, undef);
-    MILIGHT_HighLevelCmdQueue_Add($ledDevice, undef, undef, undef, $fullOnCtrl, 250, undef);
+    MILIGHT_HighLevelCmdQueue_Add($hash, undef, undef, undef, $onCtrl, 250, undef);
+    MILIGHT_HighLevelCmdQueue_Add($hash, undef, undef, undef, $fullOnCtrl, 250, undef);
+    MILIGHT_HighLevelCmdQueue_Add($hash, undef, undef, undef, $fullOnCtrl, 250, undef);
+    MILIGHT_HighLevelCmdQueue_Add($hash, undef, undef, undef, $fullOnCtrl, 250, undef);
   }
   return undef;
 }
@@ -938,57 +942,57 @@ MILIGHT_White_UnPair(@)
 sub
 MILIGHT_White_On(@)
 {
-  my ($ledDevice, $ramp) = @_;
+  my ($hash, $ramp, $flags) = @_;
   my $v = 100;
-  Log3 ($ledDevice, 3, "$ledDevice->{NAME} white slot $ledDevice->{SLOT} set on $ramp"); 
+  Log3 ($hash, 3, "$hash->{NAME} white slot $hash->{SLOT} set on $ramp"); 
   # Switch on with same brightness it was switched off with, or max if undefined.
-  if (ReadingsVal($ledDevice->{NAME}, "state", "off") eq "off")
+  if (ReadingsVal($hash->{NAME}, "state", "off") eq "off")
   {
-    $v = ReadingsVal($ledDevice->{NAME}, "brightness_on", 100);
+    $v = ReadingsVal($hash->{NAME}, "brightness_on", 100);
   }
   else
   {
-    $v = ReadingsVal($ledDevice->{NAME}, "brightness", 100);
+    $v = ReadingsVal($hash->{NAME}, "brightness", 100);
   }
   # When turning on, make sure we request at least minimum dim step.
   if ($v < round(100/MILIGHT_dimSteps($hash)))
   {
     $v = 100;
   }
-  return MILIGHT_White_Dim($ledDevice, $v, $ramp, ''); 
+  return MILIGHT_White_Dim($hash, $v, $ramp, $flags); 
 }
 
 sub
 MILIGHT_White_Off(@)
 {
-  my ($ledDevice, $ramp) = @_;
-  Log3 ($ledDevice, 3, "$ledDevice->{NAME} white slot $ledDevice->{SLOT} set off $ramp"); 
+  my ($hash, $ramp, $flags) = @_;
+  Log3 ($hash, 3, "$hash->{NAME} white slot $hash->{SLOT} set off $ramp"); 
   # Store value of brightness before turning off
   # "on" will be of the form "on 50" where 50 is current dimlevel
-  if (ReadingsVal($ledDevice->{NAME}, "state", "off") ne "off")
+  if (ReadingsVal($hash->{NAME}, "state", "off") ne "off")
   {
-    readingsBeginUpdate($ledDevice);
-    readingsBulkUpdate($ledDevice, "brightness_on", ReadingsVal($ledDevice->{NAME}, "brightness", 100));
-    readingsEndUpdate($ledDevice, 0);
+    readingsBeginUpdate($hash);
+    readingsBulkUpdate($hash, "brightness_on", ReadingsVal($hash->{NAME}, "brightness", 100));
+    readingsEndUpdate($hash, 0);
   }
-  return MILIGHT_White_Dim($ledDevice, 0, $ramp, '');
+  return MILIGHT_White_Dim($hash, 0, $ramp, $flags);
 }
 
 sub
 MILIGHT_White_Dim(@)
 {
-  my ($ledDevice, $level, $ramp, $flags) = @_;
-  my $h = ReadingsVal($ledDevice->{NAME}, "hue", 0);
-  my $s = ReadingsVal($ledDevice->{NAME}, "saturation", 0);
-  Log3 ($ledDevice, 3, "$ledDevice->{NAME} white slot $ledDevice->{SLOT} dim $level $ramp $flags"); 
-  return MILIGHT_HSV_Transition($ledDevice, $h, $s, $level, $ramp, $flags, 100);
+  my ($hash, $level, $ramp, $flags) = @_;
+  my $h = ReadingsVal($hash->{NAME}, "hue", 0);
+  my $s = ReadingsVal($hash->{NAME}, "saturation", 0);
+  Log3 ($hash, 3, "$hash->{NAME} white slot $hash->{SLOT} dim $level $ramp $flags"); 
+  return MILIGHT_HSV_Transition($hash, $h, $s, $level, $ramp, $flags, 100);
 }
 
 # $hue is colourTemperature, $val is brightness
 sub
 MILIGHT_White_setHSV(@)
 {
-  my ($ledDevice, $hue, $sat, $val) = @_;
+  my ($hash, $hue, $sat, $val) = @_;
   
   # Validate brightness
   $val = 100 if ($val > 100);
@@ -996,44 +1000,44 @@ MILIGHT_White_setHSV(@)
 
   my @bulbCmdsOn = ("\x38", "\x3D", "\x37", "\x32");
   my @bulbCmdsOff = ("\x3B", "\x33", "\x3A", "\x36");
-  my $receiver = sockaddr_in($ledDevice->{PORT}, inet_aton($ledDevice->{IP}));
+  my $receiver = sockaddr_in($hash->{PORT}, inet_aton($hash->{IP}));
   my $delay = 100;
   
   # Store new values for colourTemperature and Brightness
-  MILIGHT_setHSV_Readings($ledDevice, ReadingsVal($ledDevice->{NAME}, "colourTemperature", 1), 0, $val);
+  MILIGHT_setHSV_Readings($hash, ReadingsVal($hash->{NAME}, "colourTemperature", 1), 0, $val);
 
   # Calculate brightness hardware value (10 steps for white)
-  my $wl = (100 / MILIGHT_dimSteps($ledDevice));
+  my $wl = (100 / MILIGHT_dimSteps($hash));
   $wl = int($val / $wl);
   
   # Brightness down
-  if ($ledDevice->{helper}->{whiteLevel} > $wl)
+  if ($hash->{helper}->{whiteLevel} > $wl)
   {
-    MILIGHT_LowLevelCmdQueue_Add($ledDevice, @bulbCmdsOn[$ledDevice->{SLOT} -1]."\x00\x55", $receiver, $delay); # group on
-    Log3 ($ledDevice, 3, "$ledDevice->{NAME} white brightness decrease from $ledDevice->{helper}->{whiteLevel} to $wl");
-    for (my $i=$ledDevice->{helper}->{whiteLevel}; $i > $wl; $i--) 
+    MILIGHT_LowLevelCmdQueue_Add($hash, @bulbCmdsOn[$hash->{SLOT} -1]."\x00\x55", $receiver, $delay); # group on
+    Log3 ($hash, 3, "$hash->{NAME} white brightness decrease from $hash->{helper}->{whiteLevel} to $wl");
+    for (my $i=$hash->{helper}->{whiteLevel}; $i > $wl; $i--) 
     {
-      MILIGHT_LowLevelCmdQueue_Add($ledDevice, "\x34\x00\x55", $receiver, $delay); # brightness down
-      $ledDevice->{helper}->{whiteLevel} = $i - 1;
+      MILIGHT_LowLevelCmdQueue_Add($hash, "\x34\x00\x55", $receiver, $delay); # brightness down
+      $hash->{helper}->{whiteLevel} = $i - 1;
     }
   }
   # Brightness Up
-  elsif ($ledDevice->{helper}->{whiteLevel} < $wl)
+  elsif ($hash->{helper}->{whiteLevel} < $wl)
   {
-    $ledDevice->{helper}->{whiteLevel} = 1 if ($ledDevice->{helper}->{whiteLevel} == 0);
-    MILIGHT_LowLevelCmdQueue_Add($ledDevice, @bulbCmdsOn[$ledDevice->{SLOT} -1]."\x00\x55", $receiver, $delay); # group on
-    Log3 ($ledDevice, 3, "$ledDevice->{NAME} white brightness increase from $ledDevice->{helper}->{whiteLevel} to $wl");
-    for (my $i=$ledDevice->{helper}->{whiteLevel}; $i < $wl; $i++) 
+    $hash->{helper}->{whiteLevel} = 1 if ($hash->{helper}->{whiteLevel} == 0);
+    MILIGHT_LowLevelCmdQueue_Add($hash, @bulbCmdsOn[$hash->{SLOT} -1]."\x00\x55", $receiver, $delay); # group on
+    Log3 ($hash, 3, "$hash->{NAME} white brightness increase from $hash->{helper}->{whiteLevel} to $wl");
+    for (my $i=$hash->{helper}->{whiteLevel}; $i < $wl; $i++) 
     {
-      MILIGHT_LowLevelCmdQueue_Add($ledDevice, "\x3C\x00\x55", $receiver, $delay); # brightness up
-      $ledDevice->{helper}->{whiteLevel} = $i + 1;
+      MILIGHT_LowLevelCmdQueue_Add($hash, "\x3C\x00\x55", $receiver, $delay); # brightness up
+      $hash->{helper}->{whiteLevel} = $i + 1;
     }
   }
 
   # Make sure we actually send off command if we should be off
   if ($wl == 0)
   {
-    MILIGHT_LowLevelCmdQueue_Add($ledDevice, @bulbCmdsOff[$ledDevice->{SLOT} -1]."\x00\x55", $receiver, $delay); # group off
+    MILIGHT_LowLevelCmdQueue_Add($hash, @bulbCmdsOff[$hash->{SLOT} -1]."\x00\x55", $receiver, $delay); # group off
   }
     
   return undef;
@@ -1043,38 +1047,40 @@ sub
 MILIGHT_White_setColourTemp(@)
 {
   # $hue is colourTemperature (1-10), $val is brightness (0-100%)
-  my ($ledDevice, $hue) = @_;
+  my ($hash, $hue) = @_;
   my @bulbCmdsOn = ("\x38", "\x3D", "\x37", "\x32");
-  my $receiver = sockaddr_in($ledDevice->{PORT}, inet_aton($ledDevice->{IP}));
+  my $receiver = sockaddr_in($hash->{PORT}, inet_aton($hash->{IP}));
   my $delay = 100;
+  
+  MILIGHT_HighLevelCmdQueue_Clear($hash);
  
   # Validate colourTemperature (10 steps)
   $hue = 10 if ($hue > 10);
   $hue = 1 if ($hue < 1);
   
-  my $oldHue = ReadingsVal($ledDevice->{NAME}, "colourTemperature", 1);
+  my $oldHue = ReadingsVal($hash->{NAME}, "colourTemperature", 1);
   
   # Store new values for colourTemperature and Brightness
-  MILIGHT_setHSV_Readings($ledDevice, $hue, 0, ReadingsVal($ledDevice->{NAME}, "brightness", 100));
+  MILIGHT_setHSV_Readings($hash, $hue, 0, ReadingsVal($hash->{NAME}, "brightness", 100));
   
   # Set colour temperature
   if ($oldHue != $hue)
   {
-    MILIGHT_LowLevelCmdQueue_Add($ledDevice, @bulbCmdsOn[$ledDevice->{SLOT} -1]."\x00\x55", $receiver, $delay); # group on
+    MILIGHT_LowLevelCmdQueue_Add($hash, @bulbCmdsOn[$hash->{SLOT} -1]."\x00\x55", $receiver, $delay); # group on
     if ($oldHue > $hue)
     {
-      Log3 ($ledDevice, 3, "$ledDevice->{NAME} white colourTemp decrease from $oldHue to $hue");
+      Log3 ($hash, 3, "$hash->{NAME} white colourTemp decrease from $oldHue to $hue");
       for (my $i=$oldHue; $i > $hue; $i--)
       {
-        MILIGHT_LowLevelCmdQueue_Add($ledDevice, "\x3F\x00\x55", $receiver, $delay); # Cooler (colourtemp down)
+        MILIGHT_LowLevelCmdQueue_Add($hash, "\x3F\x00\x55", $receiver, $delay); # Cooler (colourtemp down)
       }
     }
     elsif ($oldHue < $hue)
     {
-      Log3 ($ledDevice, 3, "$ledDevice->{NAME} white colourTemp increase from $oldHue to $hue");
+      Log3 ($hash, 3, "$hash->{NAME} white colourTemp increase from $oldHue to $hue");
       for (my $i=$oldHue; $i < $hue; $i++)
       {
-        MILIGHT_LowLevelCmdQueue_Add($ledDevice, "\x3E\x00\x55", $receiver, $delay); # Warmer (colourtemp up)
+        MILIGHT_LowLevelCmdQueue_Add($hash, "\x3E\x00\x55", $receiver, $delay); # Warmer (colourtemp up)
       }
     }
   }	
@@ -1104,49 +1110,52 @@ MILIGHT_dimSteps(@)
 sub
 MILIGHT_setHSV(@)
 {
-  my ($ledDevice, $hue, $sat, $val) = @_;
-  MILIGHT_RGB_setHSV($ledDevice, $hue, $sat, $val) if ($ledDevice->{LEDTYPE} eq 'RGB');
-  MILIGHT_RGBW_setHSV($ledDevice, $hue, $sat, $val) if ($ledDevice->{LEDTYPE} eq 'RGBW');
-  MILIGHT_White_setHSV($ledDevice, $hue, $sat, $val) if ($ledDevice->{LEDTYPE} eq 'White');
+  my ($hash, $hue, $sat, $val) = @_;
+  MILIGHT_RGB_setHSV($hash, $hue, $sat, $val) if ($hash->{LEDTYPE} eq 'RGB');
+  MILIGHT_RGBW_setHSV($hash, $hue, $sat, $val) if ($hash->{LEDTYPE} eq 'RGBW');
+  MILIGHT_White_setHSV($hash, $hue, $sat, $val) if ($hash->{LEDTYPE} eq 'White');
   return undef;
 }
 
 sub
 MILIGHT_HSV_Transition(@)
 {
-  my ($ledDevice, $hue, $sat, $val, $ramp, $flags, $delay) = @_;
+  my ($hash, $hue, $sat, $val, $ramp, $flags, $delay) = @_;
   my ($hueFrom, $satFrom, $valFrom, $timeFrom);
+  
+  # Clear command queue if flag "q" not specified
+  MILIGHT_HighLevelCmdQueue_Clear($hash) if ($flags !~ m/.*[qQ].*/);
   
   # minimum stepWidth
   my $minDelay = $delay;
 
   # if queue in progress set start vals to last cached hsv target, else set start to actual hsv
-  if (@{$ledDevice->{helper}->{hlCmdQueue}} > 0)
+  if (@{$hash->{helper}->{hlCmdQueue}} > 0)
   {
-    $hueFrom = $ledDevice->{helper}->{targetHue};
-    $satFrom = $ledDevice->{helper}->{targetSat};
-    $valFrom = $ledDevice->{helper}->{targetVal};
-    $timeFrom = $ledDevice->{helper}->{targetTime};
-    Log3 ($ledDevice, 5, "$ledDevice->{NAME} prepare start hsv transition (is cached) hsv $hueFrom, $satFrom, $valFrom, $timeFrom");
+    $hueFrom = $hash->{helper}->{targetHue};
+    $satFrom = $hash->{helper}->{targetSat};
+    $valFrom = $hash->{helper}->{targetVal};
+    $timeFrom = $hash->{helper}->{targetTime};
+    Log3 ($hash, 5, "$hash->{NAME} prepare start hsv transition (is cached) hsv $hueFrom, $satFrom, $valFrom, $timeFrom");
   }
   else
   {
-    $hueFrom = $ledDevice->{READINGS}->{hue}->{VAL};
-    $satFrom = $ledDevice->{READINGS}->{saturation}->{VAL};
-    $valFrom = $ledDevice->{READINGS}->{brightness}->{VAL};
+    $hueFrom = $hash->{READINGS}->{hue}->{VAL};
+    $satFrom = $hash->{READINGS}->{saturation}->{VAL};
+    $valFrom = $hash->{READINGS}->{brightness}->{VAL};
     $timeFrom = gettimeofday();
-    Log3 ($ledDevice, 5, "$ledDevice->{NAME} prepare start hsv transition (is actual) hsv $hueFrom, $satFrom, $valFrom, $timeFrom");
+    Log3 ($hash, 5, "$hash->{NAME} prepare start hsv transition (is actual) hsv $hueFrom, $satFrom, $valFrom, $timeFrom");
   }
 
-  Log3 ($ledDevice, 4, "$ledDevice->{NAME} current HSV $hueFrom, $satFrom, $valFrom");
-  Log3 ($ledDevice, 3, "$ledDevice->{NAME} set HSV $hue, $sat, $val with ramp: $ramp, flags: ". $flags);
+  Log3 ($hash, 4, "$hash->{NAME} current HSV $hueFrom, $satFrom, $valFrom");
+  Log3 ($hash, 3, "$hash->{NAME} set HSV $hue, $sat, $val with ramp: $ramp, flags: ". $flags);
 
   # if there is no ramp we dont need transition
   if (($ramp || 0) == 0)
   {
-    Log3 ($ledDevice, 4, "$ledDevice->{NAME} hsv transition without ramp routed to direct settings, hsv $hue, $sat, $val");
-    $ledDevice->{helper}->{targetTime} = $timeFrom;
-    return MILIGHT_HighLevelCmdQueue_Add($ledDevice, $hue, $sat, $val, undef, $delay, $timeFrom);
+    Log3 ($hash, 4, "$hash->{NAME} hsv transition without ramp routed to direct settings, hsv $hue, $sat, $val");
+    $hash->{helper}->{targetTime} = $timeFrom;
+    return MILIGHT_HighLevelCmdQueue_Add($hash, $hue, $sat, $val, undef, $delay, $timeFrom);
   }
 
   # calculate the left and right turn length based
@@ -1156,7 +1165,7 @@ MILIGHT_HSV_Transition(@)
   my $fadeRight = ($hue + 360 - $hueFrom) % 360;
   my $direction = ($fadeLeft <=> $fadeRight); # -1 = counterclock, +1 = clockwise
   $direction = ($direction == 0)?1:$direction; # in dupt cw
-  Log3 ($ledDevice, 4, "$ledDevice->{NAME} color rotation dev cc:$fadeLeft, cw:$fadeRight, shortest:$direction"); 
+  Log3 ($hash, 4, "$hash->{NAME} color rotation dev cc:$fadeLeft, cw:$fadeRight, shortest:$direction"); 
   $direction *= -1 if ($flags =~ m/.*[lL].*/); # reverse if long path desired (flag l or L is set)
 
   my $rotation = ($direction == 1)?$fadeRight:$fadeLeft; # angle of hue rotation in based on flags
@@ -1168,10 +1177,10 @@ MILIGHT_HSV_Transition(@)
   # fix if there is in fact no transition, blocks queue for given ramp time with actual hsv values
   if ($rotation == 0 && $sFade == 0 && $vFade == 0)
   {
-    Log3 ($ledDevice, 4, "$ledDevice->{NAME} hsv transition with unchanged settings, hsv $hue, $sat, $val, ramp $ramp"); 
+    Log3 ($hash, 4, "$hash->{NAME} hsv transition with unchanged settings, hsv $hue, $sat, $val, ramp $ramp"); 
     
-    $ledDevice->{helper}->{targetTime} = $timeFrom + $ramp;
-    return MILIGHT_HighLevelCmdQueue_Add($ledDevice, $hue, $sat, $val, undef, $delay, $timeFrom + $ramp);
+    $hash->{helper}->{targetTime} = $timeFrom + $ramp;
+    return MILIGHT_HighLevelCmdQueue_Add($hash, $hue, $sat, $val, undef, $delay, $timeFrom + $ramp);
   }
 
   if ($rotation >= ($sFade || $vFade))
@@ -1179,21 +1188,21 @@ MILIGHT_HSV_Transition(@)
     $stepWidth = ($ramp * 1000 / $rotation); # how long is one step (set hsv) in ms based on hue
     $stepWidth = $minDelay if ($stepWidth < $minDelay);
     $steps = int($ramp * 1000 / $stepWidth); # how many steps will we need ?
-    Log3 ($ledDevice, 4, "$ledDevice->{NAME} transit (H>S||V) steps: $steps stepWidth: $stepWidth");  
+    Log3 ($hash, 4, "$hash->{NAME} transit (H>S||V) steps: $steps stepWidth: $stepWidth");  
   }
   elsif ($sFade  >= ($rotation || $vFade))
   {
     $stepWidth = ($ramp * 1000 / $sFade); # how long is one step (set hsv) in ms based on sat
     $stepWidth = $minDelay if ($stepWidth < $minDelay);
     $steps = int($ramp * 1000 / $stepWidth); # how many steps will we need ?
-    Log3 ($ledDevice, 4, "$ledDevice->{NAME} transit (S>H||V) steps: $steps stepWidth: $stepWidth");  
+    Log3 ($hash, 4, "$hash->{NAME} transit (S>H||V) steps: $steps stepWidth: $stepWidth");  
   }
   else
   {
     $stepWidth = ($ramp * 1000 / $vFade); # how long is one step (set hsv) in ms based on val
     $stepWidth = $minDelay if ($stepWidth < $minDelay);
     $steps = int($ramp * 1000 / $stepWidth); # how many steps will we need ?
-    Log3 ($ledDevice, 4, "$ledDevice->{NAME} transit (V>H||S) steps: $steps stepWidth: $stepWidth");  
+    Log3 ($hash, 4, "$hash->{NAME} transit (V>H||S) steps: $steps stepWidth: $stepWidth");  
   }
         
   $hueToSet = $hueFrom; # prepare tmp working hue
@@ -1212,183 +1221,97 @@ MILIGHT_HSV_Transition(@)
     $hueToSet += 360 if ($hueToSet < 0);
     $satToSet += $satStep;
     $valToSet += $valStep;
-    Log3 ($ledDevice, 4, "$ledDevice->{NAME} add to hl queue h:".($hueToSet).", s:".($satToSet).", v:".($valToSet)." ($i/$steps)");  
-    MILIGHT_HighLevelCmdQueue_Add($ledDevice, int($hueToSet +0.5), int($satToSet +0.5), int($valToSet +0.5), undef, $stepWidth, $timeFrom + (($i-1) * $stepWidth / 1000) );
+    Log3 ($hash, 4, "$hash->{NAME} add to hl queue h:".($hueToSet).", s:".($satToSet).", v:".($valToSet)." ($i/$steps)");  
+    MILIGHT_HighLevelCmdQueue_Add($hash, int($hueToSet +0.5), int($satToSet +0.5), int($valToSet +0.5), undef, $stepWidth, $timeFrom + (($i-1) * $stepWidth / 1000) );
   }
-  $ledDevice->{helper}->{targetTime} = $timeFrom + $ramp;
+  $hash->{helper}->{targetTime} = $timeFrom + $ramp;
   return undef;
 }
 
 sub
 MILIGHT_SetHSV_Target(@)
 {
-  my ($ledDevice, $hue, $sat, $val) = @_;
-  $ledDevice->{helper}->{targetHue} = $hue;
-  $ledDevice->{helper}->{targetSat} = $sat;
-  $ledDevice->{helper}->{targetVal} = $val;
+  my ($hash, $hue, $sat, $val) = @_;
+  $hash->{helper}->{targetHue} = $hue;
+  $hash->{helper}->{targetSat} = $sat;
+  $hash->{helper}->{targetVal} = $val;
   return undef;
 }
 
 sub
 MILIGHT_setHSV_Readings(@)
 {
-  my ($ledDevice, $hue, $sat, $val, $val_on) = @_;
+  my ($hash, $hue, $sat, $val, $val_on) = @_;
   
-  readingsBeginUpdate($ledDevice);
-  readingsBulkUpdate($ledDevice, "brightness", $val);
-  readingsBulkUpdate($ledDevice, "brightness_on", $val_on);
-  if (($ledDevice->{LEDTYPE} eq 'RGB') || ($ledDevice->{LEDTYPE} eq 'RGBW'))
+  readingsBeginUpdate($hash);
+  readingsBulkUpdate($hash, "brightness", $val);
+  readingsBulkUpdate($hash, "brightness_on", $val_on);
+  if (($hash->{LEDTYPE} eq 'RGB') || ($hash->{LEDTYPE} eq 'RGBW'))
   {
-    readingsBulkUpdate($ledDevice, "hue", $hue % 360);
-    readingsBulkUpdate($ledDevice, "saturation", $sat);
-    my ($r, $g, $b) = MILIGHT_HSV2RGB($hue, $sat, $val);
-    readingsBulkUpdate($ledDevice, "RGB", sprintf("%02X%02X%02X",$r,$g,$b));
-    readingsBulkUpdate($ledDevice, "discoMode", 0);
-    readingsBulkUpdate($ledDevice, "discoSpeed", 0);
+    # Calc RGB values from HSV
+    my ($r,$g,$b) = Color::hsv2rgb($hue/360.0,$sat/100.0,$val/100.0);
+    $r *=255; $g *=255; $b*=255;
+    # Store values
+    readingsBulkUpdate($hash, "hue", $hue);
+    readingsBulkUpdate($hash, "saturation", $sat);
+    readingsBulkUpdate($hash, "RGB", sprintf("%02X%02X%02X",$r,$g,$b)); # Int to Hex convert
+    readingsBulkUpdate($hash, "discoMode", 0);
+    readingsBulkUpdate($hash, "discoSpeed", 0);
   }
-  elsif ($ledDevice->{LEDTYPE} eq 'White')
+  elsif ($hash->{LEDTYPE} eq 'White')
   {
-    readingsBulkUpdate($ledDevice, "colourTemperature", $hue); 
+    readingsBulkUpdate($hash, "colourTemperature", $hue); 
   }
-  readingsBulkUpdate($ledDevice, "state", "on $val") if ($val > 0);
-  readingsBulkUpdate($ledDevice, "state", "off") if ($val == 0);
-  readingsEndUpdate($ledDevice, 0);
+  readingsBulkUpdate($hash, "state", "on $val") if ($val > 0);
+  readingsBulkUpdate($hash, "state", "off") if ($val == 0);
+  readingsEndUpdate($hash, 0);
 }
 
 sub
 MILIGHT_setDisco_Readings(@)
 {
   # Step/Speed can be "1" or "0" when active
-  my ($ledDevice, $step, $speed) = @_;
+  my ($hash, $step, $speed) = @_;
   
-  if (($ledDevice->{LEDTYPE} eq 'RGB') || ($ledDevice->{LEDTYPE} eq 'RGBW'))
+  if (($hash->{LEDTYPE} eq 'RGB') || ($hash->{LEDTYPE} eq 'RGBW'))
   {
-    my $discoMode = ReadingsVal($ledDevice->{NAME}, "discoMode", 0);
+    my $discoMode = ReadingsVal($hash->{NAME}, "discoMode", 0);
     $discoMode = "on";
     
-    my $discoSpeed = ReadingsVal($ledDevice->{NAME}, "discoSpeed", 5);
+    my $discoSpeed = ReadingsVal($hash->{NAME}, "discoSpeed", 5);
     $discoSpeed = "-" if ($speed == 0);
     $discoSpeed = "+" if ($speed == 1);
     
-    readingsBeginUpdate($ledDevice);
-    readingsBulkUpdate($ledDevice, "discoMode", $step);
-    readingsBulkUpdate($ledDevice, "discoSpeed", $speed);
-    readingsEndUpdate($ledDevice, 0);
+    readingsBeginUpdate($hash);
+    readingsBulkUpdate($hash, "discoMode", $step);
+    readingsBulkUpdate($hash, "discoSpeed", $speed);
+    readingsEndUpdate($hash, 0);
   }
   
-}
-
-sub
-MILIGHT_HSV2RGB(@)
-{
-  my ($hue, $sat, $val) = @_;
-
-  $val = int(($val * 2.55) +0.5);
-  if ($sat == 0) 
-  {
-    return int($val), int($val), int($val);
-  }
-  $hue %= 360;
-  $hue /= 60;
-
-  my $i = int($hue);
-
-  my $f = $hue - $i;
-  my $p = $val * (1 - $sat / 100);
-  my $q = $val * (1 - $sat / 100 * $f);
-  my $t = $val * (1 - $sat / 100 * (1 - $f));
-
-  if ( $i == 0 )
-  {
-    return int($val), int($t), int($p);
-  }
-  elsif ( $i == 1 )
-  {
-    return int($q), int($val), int($p);
-  }
-  elsif ( $i == 2 ) 
-  {
-    return int($p), int($val), int($t);
-  }
-  elsif ( $i == 3 ) 
-  {
-    return int($p), int($q), int($val);
-  }
-  elsif ( $i == 4 )
-  {
-    return int($t), int($p), int($val);
-  }
-  else
-  {
-    return int($val), int($p), int($q);
-  }
-}
-
-sub
-MILIGHT_RGB2HSV(@)
-{
-  my ($ledDevice, $in) = @_;
-  my $r = hex substr($in, 0, 2);
-  my $g = hex substr($in, 2, 2);
-  my $b = hex substr($in, 4, 2);
-  my ($max, $min, $delta);
-  my ($h, $s, $v);
-
-  $max = $r if ($r >= ($g||$b));
-  $max = $g if ($g >= ($r||$b));
-  $max = $b if ($b >= ($r||$g));
-  $min = $r if (($r <= $g) && ($r <= $b));
-  $min = $g if (($g <= $r) && ($g <= $b));
-  $min = $b if (($b <= $r) && ($b <= $g));
-
-  $v = int(($max / 2.55) + 0.5);  
-  $delta = $max - $min;
-
-  my $currentHue = ReadingsVal($ledDevice->{NAME}, "hue", 0);
-  return ($currentHue, 0, $v) if (($max == 0) || ($delta == 0));
-
-  $s = int((($delta / $max) *100) + 0.5);
-  $h = ($g - $b) / $delta if ($r == $max);
-  $h = 2 + ($b - $r) / $delta if ($g == $max);
-  $h = 4 + ($r - $g) / $delta if ($b == $max);
-  $h = int(($h * 60) + 0.5);
-  $h += 360 if ($h < 0);
-  return $h, $s, $v;
 }
 
 sub
 MILIGHT_Milight_ColorConverter(@)
 {
-  my ($ledDevice) = @_;
+  my ($hash) = @_;
 
   my @colorMap;
-  
-  my $hueRed = 0;
-  my $adjRed = $hueRed;
 
-  my $hueYellow = 60;
-  my $adjYellow = $hueYellow;
+  my $adjRed = 0;
+  my $adjYellow = 60;
+  my $adjGreen = 120;
+  my $adjCyan = 180;
+  my $adjBlue = 240;
+  my $adjLilac = 300;
 
-  my $hueGreen = 120;
-  my $adjGreen = $hueGreen;
-
-  my $hueCyan = 180;
-  my $adjCyan = $hueCyan;
-
-  my $hueBlue = 240;
-  my $adjBlue = $hueBlue;
-
-  my $hueLilac = 300;
-  my $adjLilac = $hueLilac;
-
-  my $devRed = 176;
-  #my $devYellow = 128;
-  my $devYellow = 144;
-  my $devGreen = 96;
-  #my $devCyan = 48;
-  my $devCyan = 56;
-  my $devBlue = 16;
-  my $devLilac = 224;
+  my $devRed = 176; # (0xB0)
+  my $devYellow = 128; # (0x80)
+  #my $devYellow = 144;
+  my $devGreen = 96; # (0x60)
+  my $devCyan = 48; # (0x30)
+  #my $devCyan = 56;
+  my $devBlue = 16; # (0x10)
+  my $devLilac = 224; # (0xE0)
 
   my $i= 360;
 
@@ -1399,7 +1322,7 @@ MILIGHT_Milight_ColorConverter(@)
   for ($i = $adjRed; $i <= $adjYellow; $i++)
   {
     $colorMap[$i % 360] = ($devRed - int((($devRed - $devYellow) / ($adjYellow - $adjRed)  * ($i - $adjRed)) +0.5)) % 255;
-    Log3 ($ledDevice, 4, "$ledDevice->{NAME} create colormap h: ".($i % 360)." d: ".$colorMap[$i % 360]); 
+    Log3 ($hash, 4, "$hash->{NAME} create colormap h: ".($i % 360)." d: ".$colorMap[$i % 360]); 
   }
   #yellow to green
   $devYellow += 256 if ($devYellow < $devGreen);
@@ -1407,7 +1330,7 @@ MILIGHT_Milight_ColorConverter(@)
   for ($i = $adjYellow; $i <= $adjGreen; $i++)
   {
     $colorMap[$i % 360] = ($devYellow - int((($devYellow - $devGreen) / ($adjGreen - $adjYellow)  * ($i - $adjYellow)) +0.5)) % 255;
-    Log3 ($ledDevice, 4, "$ledDevice->{NAME} create colormap h: ".($i % 360)." d: ".$colorMap[$i % 360]); 
+    Log3 ($hash, 4, "$hash->{NAME} create colormap h: ".($i % 360)." d: ".$colorMap[$i % 360]); 
   }
   #green to cyan
   $devGreen += 256 if ($devGreen < $devCyan);
@@ -1415,7 +1338,7 @@ MILIGHT_Milight_ColorConverter(@)
   for ($i = $adjGreen; $i <= $adjCyan; $i++)
   {
     $colorMap[$i % 360] = ($devGreen - int((($devGreen - $devCyan) / ($adjCyan - $adjGreen)  * ($i - $adjGreen)) +0.5)) % 255;
-    Log3 ($ledDevice, 4, "$ledDevice->{NAME} create colormap h: ".($i % 360)." d: ".$colorMap[$i % 360]); 
+    Log3 ($hash, 4, "$hash->{NAME} create colormap h: ".($i % 360)." d: ".$colorMap[$i % 360]); 
   }
   #cyan to blue
   $devCyan += 256 if ($devCyan < $devCyan);
@@ -1423,7 +1346,7 @@ MILIGHT_Milight_ColorConverter(@)
   for ($i = $adjCyan; $i <= $adjBlue; $i++)
   {
     $colorMap[$i % 360] = ($devCyan - int((($devCyan - $devBlue) / ($adjBlue - $adjCyan)  * ($i - $adjCyan)) +0.5)) % 255;
-    Log3 ($ledDevice, 4, "$ledDevice->{NAME} create colormap h: ".($i % 360)." d: ".$colorMap[$i % 360]); 
+    Log3 ($hash, 4, "$hash->{NAME} create colormap h: ".($i % 360)." d: ".$colorMap[$i % 360]); 
   }
   #blue to lilac
   $devBlue += 256 if ($devBlue < $devLilac);
@@ -1431,7 +1354,7 @@ MILIGHT_Milight_ColorConverter(@)
   for ($i = $adjBlue; $i <= $adjLilac; $i++)
   {
     $colorMap[$i % 360] = ($devBlue - int((($devBlue - $devLilac) / ($adjLilac - $adjBlue)  * ($i- $adjBlue)) +0.5)) % 255;
-    Log3 ($ledDevice, 4, "$ledDevice->{NAME} create colormap h: ".($i % 360)." d: ".$colorMap[$i % 360]); 
+    Log3 ($hash, 4, "$hash->{NAME} create colormap h: ".($i % 360)." d: ".$colorMap[$i % 360]); 
   }
   #lilac to red
   $devLilac += 256 if ($devLilac < $devRed);
@@ -1439,7 +1362,7 @@ MILIGHT_Milight_ColorConverter(@)
   for ($i = $adjLilac; $i <= $adjRed; $i++)
   {
     $colorMap[$i % 360] = ($devLilac - int((($devLilac - $devRed) / ($adjRed - $adjLilac)  * ($i - $adjLilac)) +0.5)) % 255;
-    Log3 ($ledDevice, 4, "$ledDevice->{NAME} create colormap h: ".($i % 360)." d: ".$colorMap[$i % 360]); 
+    Log3 ($hash, 4, "$hash->{NAME} create colormap h: ".($i % 360)." d: ".$colorMap[$i % 360]); 
   }
 
   return \@colorMap;
@@ -1454,7 +1377,7 @@ MILIGHT_Milight_ColorConverter(@)
 sub
 MILIGHT_HighLevelCmdQueue_Add(@)
 {
-  my ($ledDevice, $hue, $sat, $val, $ctrl, $delay, $targetTime) = @_;
+  my ($hash, $hue, $sat, $val, $ctrl, $delay, $targetTime) = @_;
   my $cmd;
 
   $cmd->{hue} = $hue;
@@ -1465,30 +1388,30 @@ MILIGHT_HighLevelCmdQueue_Add(@)
   $cmd->{targetTime} = $targetTime;
   $cmd->{inProgess} = 0;
 
-  push @{$ledDevice->{helper}->{hlCmdQueue}}, $cmd;
+  push @{$hash->{helper}->{hlCmdQueue}}, $cmd;
 
   my $dbgStr = unpack("H*", $cmd->{ctrl} || '');
-  Log3 ($ledDevice, 4, "$ledDevice->{NAME} high level cmd queue add hsv/ctrl $cmd->{hue}, $cmd->{sat}, $cmd->{val}, ctrl $dbgStr, targetTime $cmd->{targetTime}, qlen ".@{$ledDevice->{helper}->{hlCmdQueue}});
+  Log3 ($hash, 4, "$hash->{NAME} high level cmd queue add hsv/ctrl $cmd->{hue}, $cmd->{sat}, $cmd->{val}, ctrl $dbgStr, targetTime $cmd->{targetTime}, qlen ".@{$hash->{helper}->{hlCmdQueue}});
 
-  my $actualCmd = @{$ledDevice->{helper}->{hlCmdQueue}}[0];
+  my $actualCmd = @{$hash->{helper}->{hlCmdQueue}}[0];
 
   # sender busy ?
   return undef if (($actualCmd->{inProgess} || 0) == 1);
-  return MILIGHT_HighLevelCmdQueue_Exec($ledDevice);
+  return MILIGHT_HighLevelCmdQueue_Exec($hash);
 }
 
 sub
 MILIGHT_HighLevelCmdQueue_Exec(@)
 {
-  my ($ledDevice) = @_; 
-  my $actualCmd = @{$ledDevice->{helper}->{hlCmdQueue}}[0];
+  my ($hash) = @_; 
+  my $actualCmd = @{$hash->{helper}->{hlCmdQueue}}[0];
 
   # transmission complete, remove
-  shift @{$ledDevice->{helper}->{hlCmdQueue}} if ($actualCmd->{inProgess});
+  shift @{$hash->{helper}->{hlCmdQueue}} if ($actualCmd->{inProgess});
 
   # next in queue
-  $actualCmd = @{$ledDevice->{helper}->{hlCmdQueue}}[0];
-  my $nextCmd = @{$ledDevice->{helper}->{hlCmdQueue}}[1];
+  $actualCmd = @{$hash->{helper}->{hlCmdQueue}}[0];
+  my $nextCmd = @{$hash->{helper}->{hlCmdQueue}}[1];
 
   # return if no more elements in queue
   return undef if (!defined($actualCmd->{inProgess}));
@@ -1496,54 +1419,53 @@ MILIGHT_HighLevelCmdQueue_Exec(@)
   # drop frames if next frame is already scheduled for given time. do not drop if it is the last frame or if it is a command  
   while (defined($nextCmd->{targetTime}) && ($nextCmd->{targetTime} < gettimeofday()) && !$actualCmd->{ctrl})
   {
-    shift @{$ledDevice->{helper}->{hlCmdQueue}};
-    $actualCmd = @{$ledDevice->{helper}->{hlCmdQueue}}[0];
-    $nextCmd = @{$ledDevice->{helper}->{hlCmdQueue}}[1];
-    Log3 ($ledDevice, 4, "$ledDevice->{NAME} high level cmd queue exec drop frame at hlQueue level. hl qlen: ".@{$ledDevice->{helper}->{hlCmdQueue}});
+    shift @{$hash->{helper}->{hlCmdQueue}};
+    $actualCmd = @{$hash->{helper}->{hlCmdQueue}}[0];
+    $nextCmd = @{$hash->{helper}->{hlCmdQueue}}[1];
+    Log3 ($hash, 4, "$hash->{NAME} high level cmd queue exec drop frame at hlQueue level. hl qlen: ".@{$hash->{helper}->{hlCmdQueue}});
   }
-  Log3 ($ledDevice, 5, "$ledDevice->{NAME} high level cmd queue exec dropper delay: ".($actualCmd->{targetTime} - gettimeofday()) );
+  Log3 ($hash, 5, "$hash->{NAME} high level cmd queue exec dropper delay: ".($actualCmd->{targetTime} - gettimeofday()) );
 
   # set hsv or if a device ctrl command is scheduled: send it and ignore hsv
   if ($actualCmd->{ctrl})
   {
     my $dbgStr = unpack("H*", $actualCmd->{ctrl});
-    Log3 ($ledDevice, 4, "$ledDevice->{NAME} high level cmd queue exec ctrl $dbgStr, qlen ".@{$ledDevice->{helper}->{hlCmdQueue}});
-    my $receiver = sockaddr_in($ledDevice->{PORT}, inet_aton($ledDevice->{IP}));
-    MILIGHT_LowLevelCmdQueue_Add($ledDevice, $actualCmd->{ctrl}, $receiver, 100);
+    Log3 ($hash, 4, "$hash->{NAME} high level cmd queue exec ctrl $dbgStr, qlen ".@{$hash->{helper}->{hlCmdQueue}});
+    my $receiver = sockaddr_in($hash->{PORT}, inet_aton($hash->{IP}));
+    MILIGHT_LowLevelCmdQueue_Add($hash, $actualCmd->{ctrl}, $receiver, 100);
   }
   else
   {
-    if (($ledDevice->{helper}->{llLock} == 0) || (@{$ledDevice->{helper}->{hlCmdQueue}} == 1))
+    if (($hash->{helper}->{llLock} == 0) || (@{$hash->{helper}->{hlCmdQueue}} == 1))
     {
-      Log3 ($ledDevice, 4, "$ledDevice->{NAME} high level cmd queue exec hsv $actualCmd->{hue}, $actualCmd->{sat}, $actualCmd->{val}, delay $actualCmd->{delay}, hl qlen ".@{$ledDevice->{helper}->{hlCmdQueue}}.", ll qlen ".@{$ledDevice->{helper}->{llCmdQueue}}.", lock ".$ledDevice->{helper}->{llLock});
-      MILIGHT_setHSV($ledDevice, $actualCmd->{hue}, $actualCmd->{sat}, $actualCmd->{val});
+      Log3 ($hash, 4, "$hash->{NAME} high level cmd queue exec hsv $actualCmd->{hue}, $actualCmd->{sat}, $actualCmd->{val}, delay $actualCmd->{delay}, hl qlen ".@{$hash->{helper}->{hlCmdQueue}}.", ll qlen ".@{$hash->{helper}->{llCmdQueue}}.", lock ".$hash->{helper}->{llLock});
+      MILIGHT_setHSV($hash, $actualCmd->{hue}, $actualCmd->{sat}, $actualCmd->{val});
     }
     else
     {
-      Log3 ($ledDevice, 5, "$ledDevice->{NAME} high level cmd queue exec drop frame at llQueue level. ll qlen: ".@{$ledDevice->{helper}->{llCmdQueue}}.", lock ".$ledDevice->{helper}->{llLock});
+      Log3 ($hash, 5, "$hash->{NAME} high level cmd queue exec drop frame at llQueue level. ll qlen: ".@{$hash->{helper}->{llCmdQueue}}.", lock ".$hash->{helper}->{llLock});
     }
   }
   $actualCmd->{inProgess} = 1;
   my $next = defined($nextCmd->{targetTime})?$nextCmd->{targetTime}:gettimeofday() + ($actualCmd->{delay} / 1000);
-  Log3 ($ledDevice, 4, "$ledDevice->{NAME} high level cmd queue ask next $next");
-  InternalTimer($next, "MILIGHT_HighLevelCmdQueue_Exec", $ledDevice, 0);
+  Log3 ($hash, 4, "$hash->{NAME} high level cmd queue ask next $next");
+  InternalTimer($next, "MILIGHT_HighLevelCmdQueue_Exec", $hash, 0);
   return undef;
 }
 
 sub
 MILIGHT_HighLevelCmdQueue_Clear(@)
 {
-  my ($ledDevice) = @_;
+  my ($hash) = @_;
   foreach my $a (keys %intAt) 
   {
-    if (($intAt{$a}{ARG} eq $ledDevice) && ($intAt{$a}{FN} eq 'MILIGHT_HighLevelCmdQueue_Exec'))
+    if (($intAt{$a}{ARG} eq $hash) && ($intAt{$a}{FN} eq 'MILIGHT_HighLevelCmdQueue_Exec'))
     {
-
-      Log3 ($ledDevice, 4, "$ledDevice->{NAME} high level cmd queue clear, remove timer at ".$intAt{$a}{TRIGGERTIME} );
+      Log3 ($hash, 4, "$hash->{NAME} high level cmd queue clear, remove timer at ".$intAt{$a}{TRIGGERTIME} );
       delete($intAt{$a}) ;
     }
   }
-  $ledDevice->{helper}->{hlCmdQueue} = [];
+  $hash->{helper}->{hlCmdQueue} = [];
 }
 
 ###############################################################################
@@ -1557,61 +1479,61 @@ MILIGHT_HighLevelCmdQueue_Clear(@)
 sub
 MILIGHT_LowLevelCmdQueue_Add(@)
 {
-  my ($ledDevice, $command, $receiver, $delay, $unlock) = @_;
+  my ($hash, $command, $receiver, $delay, $unlock) = @_;
   my $cmd;
 
   $cmd->{command} = $command;
-  $cmd->{sender} = $ledDevice;
+  $cmd->{sender} = $hash;
   $cmd->{receiver} = $receiver;
   $cmd->{delay} = $delay;
   $cmd->{unlock} = $unlock;
   $cmd->{inProgess} = 0;
 
   # push cmd into queue
-  push @{$ledDevice->{helper}->{llCmdQueue}}, $cmd;
+  push @{$hash->{helper}->{llCmdQueue}}, $cmd;
 
   my $dbgStr = unpack("H*", $cmd->{command});
-  Log3 ($ledDevice, 5, "$ledDevice->{NAME} low level cmd queue add $dbgStr, qlen ".@{$ledDevice->{helper}->{llCmdQueue}}); 
+  Log3 ($hash, 5, "$hash->{NAME} low level cmd queue add $dbgStr, qlen ".@{$hash->{helper}->{llCmdQueue}}); 
 
-  my $actualCmd = @{$ledDevice->{helper}->{llCmdQueue}}[0];
+  my $actualCmd = @{$hash->{helper}->{llCmdQueue}}[0];
  
   # sender busy ?
   return undef if ($actualCmd->{inProgess});
-  return MILIGHT_LowLevelCmdQueue_Send($ledDevice);
+  return MILIGHT_LowLevelCmdQueue_Send($hash);
 }
 
 sub
 MILIGHT_LowLevelCmdQueue_Send(@)
 {
-  my ($ledDevice) = @_; 
-  my $actualCmd = @{$ledDevice->{helper}->{llCmdQueue}}[0];
+  my ($hash) = @_; 
+  my $actualCmd = @{$hash->{helper}->{llCmdQueue}}[0];
 
   # transmission complete, remove
-  shift @{$ledDevice->{helper}->{llCmdQueue}} if ($actualCmd->{inProgess});
+  shift @{$hash->{helper}->{llCmdQueue}} if ($actualCmd->{inProgess});
 
   # next in queue
-  $actualCmd = @{$ledDevice->{helper}->{llCmdQueue}}[0];
+  $actualCmd = @{$hash->{helper}->{llCmdQueue}}[0];
   
   # remove a low level queue lock if present and get next 
   while (($actualCmd->{unlock} || 0) == 1) 
   { 
     $actualCmd->{sender}->{helper}->{llLock} -= 1;
-    Log3 ($ledDevice, 5, "$ledDevice->{NAME} | $actualCmd->{sender}->{NAME} unlock queue ".$actualCmd->{sender}->{helper}->{llLock});
-    shift @{$ledDevice->{helper}->{llCmdQueue}}; 
-    $actualCmd = @{$ledDevice->{helper}->{llCmdQueue}}[0];
+    Log3 ($hash, 5, "$hash->{NAME} | $actualCmd->{sender}->{NAME} unlock queue ".$actualCmd->{sender}->{helper}->{llLock});
+    shift @{$hash->{helper}->{llCmdQueue}}; 
+    $actualCmd = @{$hash->{helper}->{llCmdQueue}}[0];
   }
 
   # return if no more elements in queue
   return undef if (!defined($actualCmd->{command}));
 
   my $dbgStr = unpack("H*", $actualCmd->{command});
-  Log3 ($ledDevice, 5, "$ledDevice->{NAME} low level cmd queue qlen ".@{$ledDevice->{helper}->{llCmdQueue}}.", send $dbgStr");
+  Log3 ($hash, 5, "$hash->{NAME} low level cmd queue qlen ".@{$hash->{helper}->{llCmdQueue}}.", send $dbgStr");
 
-  send($ledDevice->{helper}->{SOCKET}, $actualCmd->{command}, 0, $actualCmd->{receiver}) or Log3 ($ledDevice, 1, "$ledDevice->{NAME} low level cmd queue send ERROR $@ $dbgStr, qlen ".@{$ledDevice->{helper}->{llCmdQueue}});
+  send($hash->{helper}->{SOCKET}, $actualCmd->{command}, 0, $actualCmd->{receiver}) or Log3 ($hash, 1, "$hash->{NAME} low level cmd queue send ERROR $@ $dbgStr, qlen ".@{$hash->{helper}->{llCmdQueue}});
 
   $actualCmd->{inProgess} = 1;
   my $msec = $actualCmd->{delay} / 1000;
-  InternalTimer(gettimeofday()+$msec, "MILIGHT_LowLevelCmdQueue_Send", $ledDevice, 0);
+  InternalTimer(gettimeofday()+$msec, "MILIGHT_LowLevelCmdQueue_Send", $hash, 0);
   return undef;
 }
 
