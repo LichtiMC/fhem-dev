@@ -483,17 +483,20 @@ sub SB_PLAYER_Parse( $$ ) {
     readingsBeginUpdate( $hash );
 
     if( $cmd eq "mixer" ) {
-	if( $args[ 0 ] eq "volume" ) {
-	    # update the volume 
-	    if ($args[ 1 ] eq "?") {
-		# it is a request
-	    } else {
-		SB_SERVER_UpdateVolumeReadings( $hash, $args[ 1 ], true );
-	    }
-	}
+        if (defined($args[0]) && defined($args[1]))
+        {
+	    if( $args[ 0 ] eq "volume" ) {
+	        # update the volume 
+                if ($args[ 1 ] eq "?") {
+		    # it is a request
+                } else {
+		    SB_SERVER_UpdateVolumeReadings( $hash, $args[ 1 ], true );
+	        }
+            }
+        }
 
     } elsif( $cmd eq "remote" ) {
-	$hash->{ISREMOTESTREAM} = "$args[ 0 ]";
+	$hash->{ISREMOTESTREAM} = "$args[ 0 ]" if (defined($args[0]));
 
     } elsif( $cmd eq "play" ) {
 	readingsBulkUpdate( $hash, "playStatus", "playing" );
@@ -515,18 +518,20 @@ sub SB_PLAYER_Parse( $$ ) {
     } elsif( $cmd eq "mode" ) {
 	#Log3( $hash, 1, "Playmode: $args[ 0 ]" );
 	# alittle more complex to fulfill FHEM Development guidelines
-	if( $args[ 0 ] eq "play" ) {
-	    readingsBulkUpdate( $hash, "playStatus", "playing" );
-	    SB_PLAYER_Amplifier( $hash );
-	} elsif( $args[ 0 ] eq "stop" ) {
-	    readingsBulkUpdate( $hash, "playStatus", "stopped" );
-	    SB_PLAYER_Amplifier( $hash );
-	} elsif( $args[ 0 ] eq "pause" ) {
-	    readingsBulkUpdate( $hash, "playStatus", "paused" );
-	    SB_PLAYER_Amplifier( $hash );
-	} else {
-	    readingsBulkUpdate( $hash, "playStatus", $args[ 0 ] );
-	}
+        if (defined($args[0])) {
+            if( $args[ 0 ] eq "play" ) {
+	        readingsBulkUpdate( $hash, "playStatus", "playing" );
+                SB_PLAYER_Amplifier( $hash );
+	    } elsif( $args[ 0 ] eq "stop" ) {
+		readingsBulkUpdate( $hash, "playStatus", "stopped" );
+		SB_PLAYER_Amplifier( $hash );
+	    } elsif( $args[ 0 ] eq "pause" ) {
+		readingsBulkUpdate( $hash, "playStatus", "paused" );
+		SB_PLAYER_Amplifier( $hash );
+	    } else {
+		readingsBulkUpdate( $hash, "playStatus", $args[ 0 ] );
+            }
+        }
 
     } elsif( $cmd eq "newmetadata" ) {
 	# the song has changed, but we are easy and just ask the player
