@@ -174,12 +174,12 @@ MILIGHT_Define($$)
   {
     $hash->{helper}->{COLORMAP} = MILIGHT_Milight_ColorConverter($hash);
   }
-  $hash->{helper}->{COMMANDSET} = "on off toggle dim:slider,0,".(100/MILIGHT_dimSteps($hash)).",100 dimup dimdown HSV rgb:colorpicker,RGB discoModeUp discoSpeedUp discoSpeedDown pair unpair"
+  $hash->{helper}->{COMMANDSET} = "on off toggle dim:slider,0,".round(100/MILIGHT_dimSteps($hash)).",100 dimup dimdown HSV rgb:colorpicker,RGB discoModeUp discoSpeedUp discoSpeedDown pair unpair"
   			if ($hash->{LEDTYPE} eq 'RGBW');
-  $hash->{helper}->{COMMANDSET} = "on off toggle dim:slider,0,".(100/MILIGHT_dimSteps($hash)).",100 dimup dimdown HSV rgb:colorpicker,RGB discoModeUp discoModeDown discoSpeedUp discoSpeedDown pair unpair"
+  $hash->{helper}->{COMMANDSET} = "on off toggle dim:slider,0,".round(100/MILIGHT_dimSteps($hash)).",100 dimup dimdown HSV rgb:colorpicker,RGB discoModeUp discoModeDown discoSpeedUp discoSpeedDown pair unpair"
   			if ($hash->{LEDTYPE} eq 'RGB');
   			
-  $hash->{helper}->{COMMANDSET} = "on off toggle dim:slider,0,".(100/MILIGHT_dimSteps($hash)).",100 dimup dimdown colourtemp:slider,1,1,10 pair unpair"
+  $hash->{helper}->{COMMANDSET} = "on off toggle dim:slider,0,".round(100/MILIGHT_dimSteps($hash)).",100 dimup dimdown colourtemp:slider,1,1,10 pair unpair"
   			if ($hash->{LEDTYPE} eq 'White');
   
   # webCmds
@@ -502,7 +502,9 @@ MILIGHT_RGB_On(@)
   {
     $v = ReadingsVal($ledDevice->{NAME}, "brightness", 100);
   }
-  if ($v < 7)
+
+  # When turning on, make sure we request at least minimum dim step.
+  if ($v < round(100/MILIGHT_dimSteps($hash)))
   {
     $v = 100;
   }
@@ -694,7 +696,8 @@ MILIGHT_RGBW_On(@)
   {
     $v = ReadingsVal($ledDevice->{NAME}, "brightness", 100);
   }
-  if ($v < 7)
+  # When turning on, make sure we request at least minimum dim step.
+  if ($v < round(100/MILIGHT_dimSteps($hash)))
   {
     $v = 100;
   }
@@ -947,7 +950,8 @@ MILIGHT_White_On(@)
   {
     $v = ReadingsVal($ledDevice->{NAME}, "brightness", 100);
   }
-  if ($v < 7)
+  # When turning on, make sure we request at least minimum dim step.
+  if ($v < round(100/MILIGHT_dimSteps($hash)))
   {
     $v = 100;
   }
