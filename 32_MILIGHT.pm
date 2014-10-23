@@ -375,13 +375,31 @@ MILIGHT_Set(@)
     return MILIGHT_RGBW_DiscoModeSpeed($hash, 0);
   }
     
-  elsif ($cmd eq 'colourtemp')
+  elsif ($cmd eq 'colourTemperature')
   {
     if (defined($a[0]))
     {
       return "Usage: set $name colourTemperature <1=Cool..10=Warm>" if (($a[0] !~ /^\d+$/) || (!($a[0] ~~ [1..10])));
     }
     return MILIGHT_White_setColourTemp($hash, $a[0]);
+  }
+  
+  elsif ($cmd eq 'restorePreviousState')
+  {
+    # Restore the previous state (as store in previous* readings)
+    my ($h, $s, $v) = MILIGHT_HSVFromStr(ReadingsVal($hash, "previousState", MILIGHT_HSVFromStr($hash, 0, 0, 0)));
+    MILIGHT_HSV_Transition($hash, $h, $s, $v, 0, '', 100);
+  }
+  
+  elsif ($cmd eq 'saveState')
+  {
+    # Save the hsv state as a string
+    readingsSingleUpdate($hash, "savedState", MILIGHT_HSVToStr($hash, ReadingsVal($hash, "hue", 0), ReadingsVal($hash, "saturation", 0), ReadingsVal($hash, "brightness", 0)));
+  }
+  elsif ($cmd eq 'restoreState')
+  {
+    my ($h, $s, $v) = MILIGHT_HSVFromStr(ReadingsVal($hash, "savedState", MILIGHT_HSVFromStr($hash, 0, 0, 0)));
+    MILIGHT_HSV_Transition($hash, $h, $s, $v, 0, '', 100);
   }
 
   return SetExtensions($hash, $hash->{helper}->{COMMANDSET}, $name, $cmd, @a);
@@ -1096,6 +1114,31 @@ MILIGHT_White_setColourTemp(@)
 #
 ###############################################################################
 
+sub
+MILIGHT_HSVFromStr(@)
+{
+  # Convert HSV values from string in format "h,s,v"
+  my ($hash, @a) = @_;
+  
+  if ($a[0] !~ /^(\d{1,3}),(\d{1,3}),(\d{1,3})$/)
+  {
+    Log3, $hash, 3, "MILIGHT_HSVFromStr: Could not parse h,s,v values from $a[0]";
+    return (0, 0, 0);
+  }
+  Log3, $hash, 5, "MILIGHT_HSVFromStr: Parsed hsv string: h:$1,s:$2,v:$3";
+  return ($1, $2, $3);
+}
+
+sub
+MILIGHT_HSVToStr(@)
+{
+  # Convert HSV values to string in format "h,s,v"
+  my ($hash, $h, $s, $v) = @_;
+  
+  return "$h,$s,$v";
+}
+
+
 # Return number of steps for each type of bulb
 #  White: 10 steps (step = 10)
 #  RGB: 9 steps (step = 11)
@@ -1246,8 +1289,21 @@ MILIGHT_setHSV_Readings(@)
 {
   my ($hash, $hue, $sat, $val, $val_on) = @_;
   
-  readingsBeginUpdate($hash);
+  readingsBeginUpdate($hash); # Start update readings
+  
+  # Store previous state if different to requested state
+  my $prevHue = ReadingsVal($hash, "hue", 0);
+  my $prevSat = ReadingsVal($hash, "saturation", 0);
+  my $prevVal = ReadingsVal($hash, "brightness", 0);
+  if (($prevHue != $hue) || ($prevSat != $sat) || ($prevVal != $val))
+  {
+    readingsBulkUpdate($hash, "previousState", MILIGHT_HSVToStr($hash, $hue, $sat, $val)); 
+  }
+  # Store requested values
+  readingsBulkUpdate($hash, "hue", $hue);
+  readingsBulkUpdate($hash, "saturation", $sat);
   readingsBulkUpdate($hash, "brightness", $val);
+  # Store on brightness so we can turn on at a set brightness
   readingsBulkUpdate($hash, "brightness_on", $val_on);
   if (($hash->{LEDTYPE} eq 'RGB') || ($hash->{LEDTYPE} eq 'RGBW'))
   {
@@ -1255,8 +1311,6 @@ MILIGHT_setHSV_Readings(@)
     my ($r,$g,$b) = Color::hsv2rgb($hue/360.0,$sat/100.0,$val/100.0);
     $r *=255; $g *=255; $b*=255;
     # Store values
-    readingsBulkUpdate($hash, "hue", $hue);
-    readingsBulkUpdate($hash, "saturation", $sat);
     readingsBulkUpdate($hash, "RGB", sprintf("%02X%02X%02X",$r,$g,$b)); # Int to Hex convert
     readingsBulkUpdate($hash, "discoMode", 0);
     readingsBulkUpdate($hash, "discoSpeed", 0);
@@ -1474,8 +1528,8 @@ MILIGHT_HighLevelCmdQueue_Clear(@)
 ###############################################################################
 #
 # atomic low level udp communication to device
-# required because there are timing requirements, mostly limitaions in processing speed of the bridge
-# the commands should never be interrupted or canceled because some fhem readings are set in advance
+# required because there are timing requirements, mostly limitations in processing speed of the bridge
+# the commands should never be interrupted or cancelled because some fhem readings are set in advance
 #
 ###############################################################################
 
