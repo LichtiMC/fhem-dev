@@ -1,16 +1,25 @@
+# $Id$
 ##############################################
-# $Id: 32_MILIGHT.pm 1 2014-10-23 08:00:00Z wirem $
-
-# versions
-# 1 MILIGHT specific.  Based on 32_WifiLight code by herrmannj.
-
-# verbose level
-# 0: quit
-# 1: error
-# 2: warning
-# 3: user command
-# 4: 1st technical level (detailed internal reporting)
-# 5: 2nd technical level (full internal reporting)
+#
+#     32_MILIGHT.pm
+#     FHEM module for MILIGHT lightbulbs.
+#
+#     This file is part of fhem.
+#
+#     Fhem is free software: you can redistribute it and/or modify
+#     it under the terms of the GNU General Public License as published by
+#     the Free Software Foundation, either version 2 of the License, or
+#     (at your option) any later version.
+#
+#     Fhem is distributed in the hope that it will be useful,
+#     but WITHOUT ANY WARRANTY; without even the implied warranty of
+#     MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+#     GNU General Public License for more details.
+#
+#     You should have received a copy of the GNU General Public License
+#     along with fhem.  If not, see <http://www.gnu.org/licenses/>.
+#
+##############################################################################
 
 package main;
 
@@ -71,7 +80,7 @@ MILIGHT_devStateIcon($)
   my $name = $hash->{NAME};
 
   my $percent = ReadingsVal($name,"brightness","100");
-  my $s = $dim_values{int($percent/10)};
+  my $s = $dim_values{round($percent/10)};
 
   # Return SVG coloured icon with toggle as default action
   return ".*:light_light_$s@#".ReadingsVal($name, "RGB", "FFFFFF").":toggle"
@@ -100,18 +109,18 @@ MILIGHT_Define($$)
 
   my $otherLights;
 
-  $a[3] =~ m/(bridge-V[23]):([^:]+):*(\d+)*/g;
+  $a[3] =~ m/(bridge-[vV][23]):([^:]+):*(\d+)*/g;
   $hash->{CONNECTION} = $1;
   return "unknown connection type: choose one of bridge-V2:<ip/FQDN>, bridge-V3:<ip/FQDN>" if !(defined($hash->{CONNECTION})); 
   
   $hash->{IP} = $2;
   # Port is 50000 for bridge-V2, 8899 for bridge-V3
-  $hash->{PORT} = $3?$3:50000 if ($a[3] =~ m/(bridge-V2):([^:]+):*(\d+)*/g);
-  $hash->{PORT} = $3?$3:8899 if ($a[3] =~ m/(bridge-V3):([^:]+):*(\d+)*/g);
+  $hash->{PORT} = $3?$3:50000 if ($a[3] =~ m/(bridge-[vV]2):([^:]+):*(\d+)*/g);
+  $hash->{PORT} = $3?$3:8899 if ($a[3] =~ m/(bridge-[vV]3):([^:]+):*(\d+)*/g);
   my @hlCmdQueue = [];
   $hash->{helper}->{hlCmdQueue} = \@hlCmdQueue;
   # search if this bridge is already defined 
-  # if so, we need a shared buffer (llCmdQueue), shared socket and we need to check if the requied slot is free
+  # if so, we need a shared buffer (llCmdQueue), shared socket and we need to check if the required slot is free
   foreach $key (keys %defs) 
   {
     if (($defs{$key}{TYPE} eq 'MILIGHT') && ($defs{$key}{IP} eq $hash->{IP}) && ($key ne $name))
@@ -330,8 +339,7 @@ MILIGHT_Set(@)
       return $usage if ($a[2] !~ m/.*[lLqQ].*/); # Flags l=Long way round for transition, q=don't clear queue (add to end)
       $flags = $a[2];
     }
-    MILIGHT_HSV_Transition($hash, $h, $s, $v, $ramp, $flags);
-    return MILIGHT_SetHSV_Target($hash, $h, $s, $v);    
+    return MILIGHT_HSV_Transition($hash, $h, $s, $v, $ramp, $flags);
   }
 
   elsif ($cmd eq 'hsv')
@@ -352,8 +360,7 @@ MILIGHT_Set(@)
       return $usage if ($a[2] !~ m/.*[lLqQ].*/); # Flags l=Long way round for transition, q=don't clear queue (add to end)
       $flags = $a[2];
     }
-    MILIGHT_HSV_Transition($hash, $h, $s, $v, $ramp, $flags);
-    return MILIGHT_SetHSV_Target($hash, $h, $s, $v);
+    return MILIGHT_HSV_Transition($hash, $h, $s, $v, $ramp, $flags);
   }
   
   elsif ($cmd eq 'discoModeUp')
@@ -390,7 +397,7 @@ MILIGHT_Set(@)
     # Restore the previous state (as store in previous* readings)
     my ($h, $s, $v) = MILIGHT_HSVFromStr($hash, ReadingsVal($hash->{NAME}, "previousState", MILIGHT_HSVToStr($hash, 0, 0, 0)));
     MILIGHT_HSV_Transition($hash, $h, $s, $v, 0, '');
-    return MILIGHT_SetHSV_Target($hash, $h, $s, $v);
+    return undef;
   }
   
   elsif ($cmd eq 'saveState')
@@ -402,8 +409,7 @@ MILIGHT_Set(@)
   elsif ($cmd eq 'restoreState')
   {
     my ($h, $s, $v) = MILIGHT_HSVFromStr($hash, ReadingsVal($hash->{NAME}, "savedState", MILIGHT_HSVToStr($hash, 0, 0, 0)));
-    MILIGHT_HSV_Transition($hash, $h, $s, $v, 0, '');
-    return MILIGHT_SetHSV_Target($hash, $h, $s, $v);
+    return MILIGHT_HSV_Transition($hash, $h, $s, $v, 0, '');
   }
 
   return SetExtensions($hash, $hash->{helper}->{COMMANDSET}, $name, $cmd, @a);
@@ -456,9 +462,10 @@ MILIGHT_Notify(@)
   if ($eventSrc->{NAME} eq 'global' && @{$events}[0] eq 'INITIALIZED')
   {
     # Default to OFF if not defined
-    $hue = defined($hash->{READINGS}->{hue}->{VAL})?$hash->{READINGS}->{hue}->{VAL}:0;
-    $sat = defined($hash->{READINGS}->{saturation}->{VAL})?$hash->{READINGS}->{saturation}->{VAL}:0;
-    $val = defined($hash->{READINGS}->{brightness}->{VAL})?$hash->{READINGS}->{brightness}->{VAL}:0;
+    $hue = ReadingsVal($hash->{NAME}, "hue", 0);
+    $sat = ReadingsVal($hash->{NAME}, "saturation", 0);
+    $val = ReadingsVal($hash->{NAME}, "brightness", 0);
+
     
     # Restore state
     return MILIGHT_RGB_setHSV($hash, $hue, $sat, $val) if ($hash->{LEDTYPE} eq 'RGB');
@@ -578,7 +585,6 @@ sub
 MILIGHT_RGB_setLevels(@)
 {
   my ($hash, $cv, $cl, $wl) = @_;
-  my $receiver = sockaddr_in($hash->{PORT}, inet_aton($hash->{IP}));
   my $lock = 0;
 
   # mode 0: off, 1: mixed "white", 2: color
@@ -596,36 +602,36 @@ MILIGHT_RGB_setLevels(@)
     # if color all off switch on
     if ($hash->{helper}->{mode} == 0)
     {
-      MILIGHT_LowLevelCmdQueue_Add($hash, "\x22\x00\x55", $receiver); # switch on
-      MILIGHT_LowLevelCmdQueue_Add($hash, "\x20".chr($cv)."\x55", $receiver); # set color
+      MILIGHT_LowLevelCmdQueue_Add($hash, "\x22\x00\x55"); # switch on
+      MILIGHT_LowLevelCmdQueue_Add($hash, "\x20".chr($cv)."\x55"); # set color
       $hash->{helper}->{colorValue} = $cv;
       $hash->{helper}->{colorLevel} = 1;
       $hash->{helper}->{mode} = 2;
     }
     elsif ($hash->{helper}->{mode} == 1)
     {
-      MILIGHT_LowLevelCmdQueue_Add($hash, "\x20".chr($cv)."\x55", $receiver); # set color
+      MILIGHT_LowLevelCmdQueue_Add($hash, "\x20".chr($cv)."\x55"); # set color
       $hash->{helper}->{colorValue} = $cv;
       $hash->{helper}->{mode} = 2;
     }
     else
     {
       $hash->{helper}->{colorValue} = $cv;
-      MILIGHT_LowLevelCmdQueue_Add($hash, "\x20".chr($cv)."\x55", $receiver); # set color
+      MILIGHT_LowLevelCmdQueue_Add($hash, "\x20".chr($cv)."\x55"); # set color
     }
     # cl decrease
     if ($hash->{helper}->{colorLevel} > $cl)
     {
       for (my $i=$hash->{helper}->{colorLevel}; $i > $cl; $i--) 
       {
-        MILIGHT_LowLevelCmdQueue_Add($hash, "\x24\x00\x55", $receiver); # brightness down
+        MILIGHT_LowLevelCmdQueue_Add($hash, "\x24\x00\x55"); # brightness down
         $hash->{helper}->{colorLevel} = $i - 1;
       }
       if ($cl == 0)
       {
         # need to switch off color
         # if no white is required and no white is active we can must entirely switch off
-        MILIGHT_LowLevelCmdQueue_Add($hash, "\x21\x00\x55", $receiver); # switch off
+        MILIGHT_LowLevelCmdQueue_Add($hash, "\x21\x00\x55"); # switch off
         $hash->{helper}->{colorLevel} = 0;
         $hash->{helper}->{mode} = 0;
       }
@@ -635,13 +641,13 @@ MILIGHT_RGB_setLevels(@)
     {
       for (my $i=$hash->{helper}->{colorLevel}; $i < $cl; $i++)
       {
-        MILIGHT_LowLevelCmdQueue_Add($hash, "\x23\x00\x55", $receiver); # brightness up
+        MILIGHT_LowLevelCmdQueue_Add($hash, "\x23\x00\x55"); # brightness up
         $hash->{helper}->{colorLevel} = $i + 1;
       }
     }
   }
   # unlock ll queue
-  MILIGHT_LowLevelCmdQueue_Add($hash, "\x00", $receiver, 1) if $lock;
+  MILIGHT_LowLevelCmdQueue_Add($hash, "\x00", 1) if $lock;
   return undef;
 }
 
@@ -652,8 +658,8 @@ MILIGHT_RGB_ColorConverter(@)
   my $color = $hash->{helper}->{COLORMAP}[$h % 360];
   
   # there are 0..9 dim level, setup correction
-  my $valueSpread = 100/9;
-  my $totalVal = int(($v / $valueSpread) +0.5);
+  my $valueSpread = 100/MILIGHT_dimSteps($hash);
+  my $totalVal = round($v / $valueSpread);
   # saturation 100..50: color full, white increase. 50..0 white full, color decrease
   my $colorVal = ($s >= 50) ? $totalVal : int(($s / 50 * $totalVal) +0.5);
   my $whiteVal = ($s >= 50) ? int(((100-$s) / 50 * $totalVal) +0.5) : $totalVal;
@@ -663,7 +669,7 @@ MILIGHT_RGB_ColorConverter(@)
 ###############################################################################
 #
 # device specific functions RGBW bulb 
-# RGB white, only bridge V3
+# RGB+White, only bridge V3
 #
 ###############################################################################
 
@@ -747,11 +753,11 @@ MILIGHT_RGBW_Off(@)
 sub
 MILIGHT_RGBW_Dim(@)
 {
-  my ($hash, $level, $ramp, $flags) = @_;
+  my ($hash, $v, $ramp, $flags) = @_;
   my $h = ReadingsVal($hash->{NAME}, "hue", 0);
   my $s = ReadingsVal($hash->{NAME}, "saturation", 0);
-  Log3 ($hash, 4, "$hash->{NAME} RGBW slot $hash->{SLOT} dim $level $ramp ". $flags || ''); 
-  return MILIGHT_HSV_Transition($hash, $h, $s, $level, $ramp, $flags);
+  Log3 ($hash, 4, "$hash->{NAME} RGBW slot $hash->{SLOT} dim $v $ramp ". $flags || ''); 
+  return MILIGHT_HSV_Transition($hash, $h, $s, $v, $ramp, $flags);
 }
 
 sub
@@ -764,12 +770,12 @@ MILIGHT_RGBW_setHSV(@)
   my @bulbCmdsOff = ("\x46", "\x48", "\x4A", "\x4C");
   my @bulbCmdsWT = ("\xC5", "\xC7", "\xC9", "\xCB");
 
-  my $receiver = sockaddr_in($hash->{PORT}, inet_aton($hash->{IP}));
   my $cv = $hash->{helper}->{COLORMAP}[$hue % 360];
 
   # mode 0 = off, 1 = color, 2 = white, 3 = disco
   # brightness 2..27 (x02..x1b) | 25 dim levels
-  my $cf = int((($val / 100) * 25) + 2);
+  
+  my $cf = round((($val / 100) * MILIGHT_dimSteps($hash)) + 2);
   if ($sat < 20) 
   {
     $wl = $cf;
@@ -789,7 +795,7 @@ MILIGHT_RGBW_setHSV(@)
 
   # lock ll queue to prevent a bottleneck within llqueue
   # in cases where the high level queue fills the low level queue (which should not be interrupted) faster then it is processed (send out)
-  # this lock will cause the hlexec intentionally drop frames which can safely be done because there are further frames for processing avialable  
+  # this lock will cause the hlexec intentionally drop frames which can safely be done because there are further frames for processing available  
   $hash->{helper}->{llLock} += 1;
   Log3 ($hash, 5, "$hash->{NAME} RGBW slot $hash->{SLOT} lock queue ".$hash->{helper}->{llLock});
 
@@ -798,30 +804,32 @@ MILIGHT_RGBW_setHSV(@)
   # Off is shifted to "2" above so check for < 3
   if (($wl < 3) && ($cl < 3)) # off
   {
-    MILIGHT_LowLevelCmdQueue_Add($hash, @bulbCmdsOff[$hash->{SLOT} -5]."\x00\x55", $receiver); # group off
-    MILIGHT_LowLevelCmdQueue_Add($hash, @bulbCmdsOff[$hash->{SLOT} -5]."\x00\x55", $receiver); # group off
+    MILIGHT_LowLevelCmdQueue_Add($hash, @bulbCmdsOff[$hash->{SLOT} -5]."\x00\x55"); # group off
+    MILIGHT_LowLevelCmdQueue_Add($hash, @bulbCmdsOff[$hash->{SLOT} -5]."\x00\x55"); # group off
     $hash->{helper}->{whiteLevel} = 0;
     $hash->{helper}->{colorLevel} = 0;
     $hash->{helper}->{mode} = 0; # group off
   }
   else # on
   {
-    MILIGHT_LowLevelCmdQueue_Add($hash, @bulbCmdsOn[$hash->{SLOT} -5]."\x00\x55", $receiver) if (($wl > 0) || ($cl > 0)); # group on
-    MILIGHT_LowLevelCmdQueue_Add($hash, @bulbCmdsOn[$hash->{SLOT} -5]."\x00\x55", $receiver) if (($wl > 0) || ($cl > 0)); # group on
     if ($wl > 0) # white
     {
-      MILIGHT_LowLevelCmdQueue_Add($hash, @bulbCmdsWT[$hash->{SLOT} -5]."\x00\x55", $receiver); # white
-      MILIGHT_LowLevelCmdQueue_Add($hash, "\x4E".chr($wl)."\x55", $receiver); # brightness
-      MILIGHT_LowLevelCmdQueue_Add($hash, @bulbCmdsWT[$hash->{SLOT} -5]."\x00\x55", $receiver); # white
-      MILIGHT_LowLevelCmdQueue_Add($hash, "\x4E".chr($wl)."\x55", $receiver); # brightness
+      MILIGHT_LowLevelCmdQueue_Add($hash, @bulbCmdsOn[$hash->{SLOT} -5]."\x00\x55") if (($wl > 0) || ($cl > 0)); # group on
+      MILIGHT_LowLevelCmdQueue_Add($hash, @bulbCmdsWT[$hash->{SLOT} -5]."\x00\x55"); # white
+      MILIGHT_LowLevelCmdQueue_Add($hash, "\x4E".chr($wl)."\x55"); # brightness
+      MILIGHT_LowLevelCmdQueue_Add($hash, @bulbCmdsOn[$hash->{SLOT} -5]."\x00\x55") if (($wl > 0) || ($cl > 0)); # group on
+      MILIGHT_LowLevelCmdQueue_Add($hash, @bulbCmdsWT[$hash->{SLOT} -5]."\x00\x55"); # white
+      MILIGHT_LowLevelCmdQueue_Add($hash, "\x4E".chr($wl)."\x55"); # brightness
       $hash->{helper}->{mode} = 2; # white
     }
     elsif ($cl > 0) # color
     {
-      MILIGHT_LowLevelCmdQueue_Add($hash, "\x40".chr($cv)."\x55", $receiver); # color
-      MILIGHT_LowLevelCmdQueue_Add($hash, "\x4E".chr($cl)."\x55", $receiver); # brightness
-      MILIGHT_LowLevelCmdQueue_Add($hash, "\x40".chr($cv)."\x55", $receiver); # color
-      MILIGHT_LowLevelCmdQueue_Add($hash, "\x4E".chr($cl)."\x55", $receiver); # brightness
+      MILIGHT_LowLevelCmdQueue_Add($hash, @bulbCmdsOn[$hash->{SLOT} -5]."\x00\x55") if (($wl > 0) || ($cl > 0)); # group on
+      MILIGHT_LowLevelCmdQueue_Add($hash, "\x40".chr($cv)."\x55"); # color
+      MILIGHT_LowLevelCmdQueue_Add($hash, "\x4E".chr($cl)."\x55"); # brightness
+      MILIGHT_LowLevelCmdQueue_Add($hash, @bulbCmdsOn[$hash->{SLOT} -5]."\x00\x55") if (($wl > 0) || ($cl > 0)); # group on
+      MILIGHT_LowLevelCmdQueue_Add($hash, "\x40".chr($cv)."\x55"); # color
+      MILIGHT_LowLevelCmdQueue_Add($hash, "\x4E".chr($cl)."\x55"); # brightness
       $hash->{helper}->{mode} = 1; # color
     }
 
@@ -830,7 +838,7 @@ MILIGHT_RGBW_setHSV(@)
     $hash->{helper}->{whiteLevel} = $wl;
   }
   # unlock ll queue after complete cmd is send
-  MILIGHT_LowLevelCmdQueue_Add($hash, "\x00", $receiver, 1);
+  MILIGHT_LowLevelCmdQueue_Add($hash, "\x00", 1);
   
   return undef;
 }
@@ -841,8 +849,6 @@ MILIGHT_RGBW_DiscoModeStep(@)
   my ($hash, $step) = @_;
   
   my @bulbCmdsOn = ("\x45", "\x47", "\x49", "\x4B");
-
-  my $receiver = sockaddr_in($hash->{PORT}, inet_aton($hash->{IP}));
   
   MILIGHT_HighLevelCmdQueue_Clear($hash);
   
@@ -860,23 +866,23 @@ MILIGHT_RGBW_DiscoModeStep(@)
 
   # NOTE: Only sending commands once, because it makes changes on each successive command
 
-  MILIGHT_LowLevelCmdQueue_Add($hash, "\x22\x00\x55", $receiver) if (($hash->{LEDTYPE} eq 'RGB')); # switch on
-  MILIGHT_LowLevelCmdQueue_Add($hash, @bulbCmdsOn[$hash->{SLOT} -5]."\x00\x55", $receiver) if (($hash->{LEDTYPE} eq 'RGBW')); # group on
+  MILIGHT_LowLevelCmdQueue_Add($hash, "\x22\x00\x55") if (($hash->{LEDTYPE} eq 'RGB')); # switch on
+  MILIGHT_LowLevelCmdQueue_Add($hash, @bulbCmdsOn[$hash->{SLOT} -5]."\x00\x55") if (($hash->{LEDTYPE} eq 'RGBW')); # group on
 
   if ($step == 1)
   {
-      MILIGHT_LowLevelCmdQueue_Add($hash, "\x27\x00\x55", $receiver) if (($hash->{LEDTYPE} eq 'RGB')); # discoMode step up
-      MILIGHT_LowLevelCmdQueue_Add($hash, "\x4D\x00\x55", $receiver) if (($hash->{LEDTYPE} eq 'RGBW')); # discoMode step up
+      MILIGHT_LowLevelCmdQueue_Add($hash, "\x27\x00\x55") if (($hash->{LEDTYPE} eq 'RGB')); # discoMode step up
+      MILIGHT_LowLevelCmdQueue_Add($hash, "\x4D\x00\x55") if (($hash->{LEDTYPE} eq 'RGBW')); # discoMode step up
   }
   elsif ($step == 0)
   {
-    MILIGHT_LowLevelCmdQueue_Add($hash, "\x28\x00\x55", $receiver); # discoMode step down
+    MILIGHT_LowLevelCmdQueue_Add($hash, "\x28\x00\x55"); # discoMode step down
   }
   
   $hash->{helper}->{mode} = 3; # disco
 
   # unlock ll queue after complete cmd is send
-  MILIGHT_LowLevelCmdQueue_Add($hash, "\x00", $receiver, 1);
+  MILIGHT_LowLevelCmdQueue_Add($hash, "\x00", 1);
   
   return undef;
 }
@@ -886,8 +892,6 @@ MILIGHT_RGBW_DiscoModeSpeed(@)
   my ($hash, $speed) = @_;
 
   my @bulbCmdsOn = ("\x45", "\x47", "\x49", "\x4B");
-
-  my $receiver = sockaddr_in($hash->{PORT}, inet_aton($hash->{IP}));
 
   MILIGHT_HighLevelCmdQueue_Clear($hash);
   
@@ -905,24 +909,24 @@ MILIGHT_RGBW_DiscoModeSpeed(@)
 
   # NOTE: Only sending commands once, because it makes changes on each successive command
 
-  MILIGHT_LowLevelCmdQueue_Add($hash, "\x22\x00\x55", $receiver) if (($hash->{LEDTYPE} eq 'RGB')); # switch on
-  MILIGHT_LowLevelCmdQueue_Add($hash, @bulbCmdsOn[$hash->{SLOT} -5]."\x00\x55", $receiver) if (($hash->{LEDTYPE} eq 'RGBW')); # group on
+  MILIGHT_LowLevelCmdQueue_Add($hash, "\x22\x00\x55") if (($hash->{LEDTYPE} eq 'RGB')); # switch on
+  MILIGHT_LowLevelCmdQueue_Add($hash, @bulbCmdsOn[$hash->{SLOT} -5]."\x00\x55") if (($hash->{LEDTYPE} eq 'RGBW')); # group on
 
   if ($speed == 1)
   {
-    MILIGHT_LowLevelCmdQueue_Add($hash, "\x25\x00\x55", $receiver) if ($hash->{LEDTYPE} eq 'RGB'); # discoMode speed up
-    MILIGHT_LowLevelCmdQueue_Add($hash, "\x44\x00\x55", $receiver) if ($hash->{LEDTYPE} eq 'RGBW'); # discoMode speed up
+    MILIGHT_LowLevelCmdQueue_Add($hash, "\x25\x00\x55") if ($hash->{LEDTYPE} eq 'RGB'); # discoMode speed up
+    MILIGHT_LowLevelCmdQueue_Add($hash, "\x44\x00\x55") if ($hash->{LEDTYPE} eq 'RGBW'); # discoMode speed up
   }
   elsif ($speed == 0)
   {
-    MILIGHT_LowLevelCmdQueue_Add($hash, "\x26\x00\x55", $receiver) if ($hash->{LEDTYPE} eq 'RGB'); # discoMode speed down
-    MILIGHT_LowLevelCmdQueue_Add($hash, "\x43\x00\x55", $receiver) if ($hash->{LEDTYPE} eq 'RGBW'); # discoMode speed down
+    MILIGHT_LowLevelCmdQueue_Add($hash, "\x26\x00\x55") if ($hash->{LEDTYPE} eq 'RGB'); # discoMode speed down
+    MILIGHT_LowLevelCmdQueue_Add($hash, "\x43\x00\x55") if ($hash->{LEDTYPE} eq 'RGBW'); # discoMode speed down
   }
 
   $hash->{helper}->{mode} = 3; # disco
 
   # unlock ll queue after complete cmd is send
-  MILIGHT_LowLevelCmdQueue_Add($hash, "\x00", $receiver, 1);
+  MILIGHT_LowLevelCmdQueue_Add($hash, "\x00", 1);
   
   return undef;
 }
@@ -1034,11 +1038,10 @@ MILIGHT_White_setHSV(@)
   my @bulbCmdsOn = ("\x38", "\x3D", "\x37", "\x32");
   my @bulbCmdsOff = ("\x3B", "\x33", "\x3A", "\x36");
   my @bulbCmdsOnFull = ("\xB8", "\xBD", "\xB7", "\xB2");
-  my $receiver = sockaddr_in($hash->{PORT}, inet_aton($hash->{IP}));
   
   # Calculate brightness hardware value (10 steps for white)
   my $maxWl = (100 / MILIGHT_dimSteps($hash));
-  my $wl = int($val / $maxWl);
+  my $wl = round($val / $maxWl);
 
   if (ReadingsVal($hash, "brightness", 0) > 0)
   {
@@ -1058,25 +1061,25 @@ MILIGHT_White_setHSV(@)
   # Make sure we actually send off command if we should be off
   if ($wl == 0)
   {
-    MILIGHT_LowLevelCmdQueue_Add($hash, @bulbCmdsOff[$hash->{SLOT} -1]."\x00\x55", $receiver); # group off
-    MILIGHT_LowLevelCmdQueue_Add($hash, @bulbCmdsOff[$hash->{SLOT} -1]."\x00\x55", $receiver); # group off
+    MILIGHT_LowLevelCmdQueue_Add($hash, @bulbCmdsOff[$hash->{SLOT} -1]."\x00\x55"); # group off
+    MILIGHT_LowLevelCmdQueue_Add($hash, @bulbCmdsOff[$hash->{SLOT} -1]."\x00\x55"); # group off
     Log3 ($hash, 4, "$hash->{NAME} white off");
   }
 
   elsif ($wl == $maxWl)
   {
-    MILIGHT_LowLevelCmdQueue_Add($hash, @bulbCmdsOn[$hash->{SLOT} -1]."\x00\x55", $receiver); # group on
-    MILIGHT_LowLevelCmdQueue_Add($hash, @bulbCmdsOnFull[$hash->{SLOT} -1]."\x00\x55", $receiver); # group on full
-    MILIGHT_LowLevelCmdQueue_Add($hash, @bulbCmdsOn[$hash->{SLOT} -1]."\x00\x55", $receiver); # group on
-    MILIGHT_LowLevelCmdQueue_Add($hash, @bulbCmdsOnFull[$hash->{SLOT} -1]."\x00\x55", $receiver); # group on full
+    MILIGHT_LowLevelCmdQueue_Add($hash, @bulbCmdsOn[$hash->{SLOT} -1]."\x00\x55"); # group on
+    MILIGHT_LowLevelCmdQueue_Add($hash, @bulbCmdsOnFull[$hash->{SLOT} -1]."\x00\x55"); # group on full
+    MILIGHT_LowLevelCmdQueue_Add($hash, @bulbCmdsOn[$hash->{SLOT} -1]."\x00\x55"); # group on
+    MILIGHT_LowLevelCmdQueue_Add($hash, @bulbCmdsOnFull[$hash->{SLOT} -1]."\x00\x55"); # group on full
     Log3 ($hash, 4, "$hash->{NAME} white full brightness");
   }
 
   else
   {
     # Not off or MAX brightness, so make sure we are on
-    MILIGHT_LowLevelCmdQueue_Add($hash, @bulbCmdsOn[$hash->{SLOT} -1]."\x00\x55", $receiver); # group on
-    MILIGHT_LowLevelCmdQueue_Add($hash, @bulbCmdsOn[$hash->{SLOT} -1]."\x00\x55", $receiver); # group on
+    MILIGHT_LowLevelCmdQueue_Add($hash, @bulbCmdsOn[$hash->{SLOT} -1]."\x00\x55"); # group on
+    MILIGHT_LowLevelCmdQueue_Add($hash, @bulbCmdsOn[$hash->{SLOT} -1]."\x00\x55"); # group on
 
     if ($hash->{helper}->{whiteLevel} > $wl)
     {
@@ -1084,7 +1087,7 @@ MILIGHT_White_setHSV(@)
       Log3 ($hash, 4, "$hash->{NAME} white brightness decrease from $hash->{helper}->{whiteLevel} to $wl");
       for (my $i=$hash->{helper}->{whiteLevel}; $i > $wl; $i--) 
       {
-        MILIGHT_LowLevelCmdQueue_Add($hash, "\x34\x00\x55", $receiver); # brightness down
+        MILIGHT_LowLevelCmdQueue_Add($hash, "\x34\x00\x55"); # brightness down
         $hash->{helper}->{whiteLevel} = $i - 1;
       }
     }
@@ -1096,7 +1099,7 @@ MILIGHT_White_setHSV(@)
       Log3 ($hash, 4, "$hash->{NAME} white brightness increase from $hash->{helper}->{whiteLevel} to $wl");
       for (my $i=$hash->{helper}->{whiteLevel}; $i < $wl; $i++) 
       {
-        MILIGHT_LowLevelCmdQueue_Add($hash, "\x3C\x00\x55", $receiver); # brightness up
+        MILIGHT_LowLevelCmdQueue_Add($hash, "\x3C\x00\x55"); # brightness up
         $hash->{helper}->{whiteLevel} = $i + 1;
       }
     }
@@ -1110,7 +1113,7 @@ MILIGHT_White_setHSV(@)
   $hash->{helper}->{whiteLevel} = $wl;
 
   # unlock ll queue after complete cmd is send
-  MILIGHT_LowLevelCmdQueue_Add($hash, "\x00", $receiver, 1);
+  MILIGHT_LowLevelCmdQueue_Add($hash, "\x00", 1);
     
   return undef;
 }
@@ -1121,7 +1124,6 @@ MILIGHT_White_setColourTemp(@)
   # $hue is colourTemperature (1-10), $val is brightness (0-100%)
   my ($hash, $hue) = @_;
   my @bulbCmdsOn = ("\x38", "\x3D", "\x37", "\x32");
-  my $receiver = sockaddr_in($hash->{PORT}, inet_aton($hash->{IP}));
   
   MILIGHT_HighLevelCmdQueue_Clear($hash);
  
@@ -1137,13 +1139,13 @@ MILIGHT_White_setColourTemp(@)
   # Set colour temperature
   if ($oldHue != $hue)
   {
-    MILIGHT_LowLevelCmdQueue_Add($hash, @bulbCmdsOn[$hash->{SLOT} -1]."\x00\x55", $receiver); # group on
+    MILIGHT_LowLevelCmdQueue_Add($hash, @bulbCmdsOn[$hash->{SLOT} -1]."\x00\x55"); # group on
     if ($oldHue > $hue)
     {
       Log3 ($hash, 4, "$hash->{NAME} white colourTemp decrease from $oldHue to $hue");
       for (my $i=$oldHue; $i > $hue; $i--)
       {
-        MILIGHT_LowLevelCmdQueue_Add($hash, "\x3F\x00\x55", $receiver); # Cooler (colourtemp down)
+        MILIGHT_LowLevelCmdQueue_Add($hash, "\x3F\x00\x55"); # Cooler (colourtemp down)
       }
     }
     elsif ($oldHue < $hue)
@@ -1151,7 +1153,7 @@ MILIGHT_White_setColourTemp(@)
       Log3 ($hash, 4, "$hash->{NAME} white colourTemp increase from $oldHue to $hue");
       for (my $i=$oldHue; $i < $hue; $i++)
       {
-        MILIGHT_LowLevelCmdQueue_Add($hash, "\x3E\x00\x55", $receiver); # Warmer (colourtemp up)
+        MILIGHT_LowLevelCmdQueue_Add($hash, "\x3E\x00\x55"); # Warmer (colourtemp up)
       }
     }
   }	
@@ -1189,6 +1191,20 @@ MILIGHT_HSVToStr(@)
   return "$h,$s,$v";
 }
 
+sub
+MILIGHT_validateHSV(@)
+{
+  # Validate and return valid values for HSV
+  my ($hash, $h, $s, $v) = @_;
+  $h = 0 if ($h < 0);
+  $h = 360 if ($h > 360);
+  $s = 0 if ($s < 0);
+  $s = 100 if ($s > 100);
+  $v = 0 if ($v < 0);
+  $v = 100 if ($v > 100);
+  
+  return ($h, $s, $v);
+}
 
 # Return number of steps for each type of bulb
 #  White: 10 steps (step = 10)
@@ -1220,11 +1236,16 @@ MILIGHT_HSV_Transition(@)
   my ($hash, $hue, $sat, $val, $ramp, $flags) = @_;
   my ($hueFrom, $satFrom, $valFrom, $timeFrom);
   
+  # Store target vales
+  $hash->{helper}->{targetHue} = $hue;
+  $hash->{helper}->{targetSat} = $sat;
+  $hash->{helper}->{targetVal} = $val;
+  
   # Clear command queue if flag "q" not specified
   MILIGHT_HighLevelCmdQueue_Clear($hash) if ($flags !~ m/.*[qQ].*/);
   
   # minimum stepWidth
-  my $minDelay = 100; # Min 100 ms as specified by Milight / LimitlessLED API
+  my $minDelay = MILIGHT_getBridgeDelay($hash); # Min bridge delay as specified by Milight / LimitlessLED API
 
   # if queue in progress set start vals to last cached hsv target, else set start to actual hsv
   if (@{$hash->{helper}->{hlCmdQueue}} > 0)
@@ -1237,9 +1258,9 @@ MILIGHT_HSV_Transition(@)
   }
   else
   {
-    $hueFrom = $hash->{READINGS}->{hue}->{VAL};
-    $satFrom = $hash->{READINGS}->{saturation}->{VAL};
-    $valFrom = $hash->{READINGS}->{brightness}->{VAL};
+    $hueFrom = ReadingsVal($hash->{NAME}, "hue", 0);
+    $satFrom = ReadingsVal($hash->{NAME}, "saturation", 0);
+    $valFrom = ReadingsVal($hash->{NAME}, "brightness", 0);
     $timeFrom = gettimeofday();
     Log3 ($hash, 5, "$hash->{NAME} prepare start hsv transition (is actual) hsv $hueFrom, $satFrom, $valFrom, $timeFrom");
   }
@@ -1250,7 +1271,7 @@ MILIGHT_HSV_Transition(@)
   # if there is no ramp we dont need transition
   if (($ramp || 0) == 0)
   {
-    Log3 ($hash, 4, "$hash->{NAME} hsv transition without ramp routed to direct settings, hsv $hue, $sat, $val");
+    Log3 ($hash, 4, "$hash->{NAME} hsv transition without ramp, hsv $hue, $sat, $val");
     $hash->{helper}->{targetTime} = $timeFrom;
     return MILIGHT_HighLevelCmdQueue_Add($hash, $hue, $sat, $val, undef, $minDelay, $timeFrom);
   }
@@ -1280,58 +1301,51 @@ MILIGHT_HSV_Transition(@)
     return MILIGHT_HighLevelCmdQueue_Add($hash, $hue, $sat, $val, undef, $minDelay, $timeFrom);
   }
 
+  # Calculate stepWidth
   if ($rotation >= ($sFade || $vFade))
   {
     $stepWidth = ($ramp * 1000 / $rotation); # how long is one step (set hsv) in ms based on hue
-    $stepWidth = $minDelay if ($stepWidth < $minDelay);
-    $steps = int($ramp * 1000 / $stepWidth); # how many steps will we need ?
-    Log3 ($hash, 4, "$hash->{NAME} transit (H>S||V) steps: $steps stepWidth: $stepWidth");  
   }
   elsif ($sFade  >= ($rotation || $vFade))
   {
     $stepWidth = ($ramp * 1000 / $sFade); # how long is one step (set hsv) in ms based on sat
-    $stepWidth = $minDelay if ($stepWidth < $minDelay);
-    $steps = int($ramp * 1000 / $stepWidth); # how many steps will we need ?
-    Log3 ($hash, 4, "$hash->{NAME} transit (S>H||V) steps: $steps stepWidth: $stepWidth");  
   }
   else
   {
     $stepWidth = ($ramp * 1000 / $vFade); # how long is one step (set hsv) in ms based on val
-    $stepWidth = $minDelay if ($stepWidth < $minDelay);
-    $steps = int($ramp * 1000 / $stepWidth); # how many steps will we need ?
-    Log3 ($hash, 4, "$hash->{NAME} transit (V>H||S) steps: $steps stepWidth: $stepWidth");  
   }
-        
-  $hueToSet = $hueFrom; # prepare tmp working hue
-  $hueStep = $rotation / $steps * $direction; # how big is one hue step base on timing choosen
-          
-  $satToSet = $satFrom; # prepare workin sat
+  $stepWidth = $minDelay if ($stepWidth < $minDelay); # Make sure we have min stepWidth
+  
+  # Calculate number of steps
+  $steps = int($ramp * 1000 / $stepWidth);
+  
+  Log3 ($hash, 4, "$hash->{NAME} transition steps: $steps stepWidth: $stepWidth");  
+  
+  # Calculate hue step  
+  $hueToSet = $hueFrom; # Start at current hue
+  $hueStep = $rotation / $steps * $direction;
+  
+  # Calculate saturation step
+  $satToSet = $satFrom; # Start at current saturation
   $satStep = ($sat - $satFrom) / $steps;
-          
-  $valToSet = $valFrom;
+  
+  # Calculate brightness step
+  $valToSet = $valFrom;  # Start at current brightness
   $valStep = ($val - $valFrom) / $steps;
 
   for (my $i=1; $i <= $steps; $i++)
   {
-    $hueToSet += $hueStep;
+    $hueToSet += $hueStep; # Increment new hue by step (negative step decrements)
     $hueToSet -= 360 if ($hueToSet > 360); #handle turn over zero
     $hueToSet += 360 if ($hueToSet < 0);
-    $satToSet += $satStep;
-    $valToSet += $valStep;
+    $satToSet += $satStep; # Increment new hue by step (negative step decrements)
+    $valToSet += $valStep; # Increment new hue by step (negative step decrements)
     Log3 ($hash, 4, "$hash->{NAME} add to hl queue h:".($hueToSet).", s:".($satToSet).", v:".($valToSet)." ($i/$steps)");  
-    MILIGHT_HighLevelCmdQueue_Add($hash, int($hueToSet +0.5), int($satToSet +0.5), int($valToSet +0.5), undef, $stepWidth, $timeFrom + (($i-1) * $stepWidth / 1000) );
+    MILIGHT_HighLevelCmdQueue_Add($hash, round($hueToSet), round($satToSet), round($valToSet), undef, $stepWidth, $timeFrom + (($i-1) * $stepWidth / 1000) );
   }
-  $hash->{helper}->{targetTime} = $timeFrom + $ramp;
-  return undef;
-}
-
-sub
-MILIGHT_SetHSV_Target(@)
-{
-  my ($hash, $hue, $sat, $val) = @_;
-  $hash->{helper}->{targetHue} = $hue;
-  $hash->{helper}->{targetSat} = $sat;
-  $hash->{helper}->{targetVal} = $val;
+  # Set target time for completion of sequence. 
+  # This may be slightly higher than what was requested since $stepWidth > minDelay (($steps * $stepWidth) > $ramp)
+  $hash->{helper}->{targetTime} = $timeFrom + ($steps * $stepWidth);
   return undef;
 }
 
@@ -1476,6 +1490,14 @@ MILIGHT_ColorConverter(@)
   return \@colorMap;
 }
 
+sub
+MILIGHT_getBridgeDelay(@)
+{
+  # Returns bridge delay in ms
+  my ($hash) = @_;
+  return 100;
+}
+
 ###############################################################################
 #
 # high level queue, long running color transitions
@@ -1487,6 +1509,9 @@ MILIGHT_HighLevelCmdQueue_Add(@)
 {
   my ($hash, $hue, $sat, $val, $ctrl, $delay, $targetTime) = @_;
   my $cmd;
+  
+  # Validate input
+  ($hue, $sat, $val) = MILIGHT_validateHSV($hash, $hue, $sat, $val);
 
   $cmd->{hue} = $hue;
   $cmd->{sat} = $sat;
@@ -1539,8 +1564,7 @@ MILIGHT_HighLevelCmdQueue_Exec(@)
   {
     my $dbgStr = unpack("H*", $actualCmd->{ctrl});
     Log3 ($hash, 4, "$hash->{NAME} high level cmd queue exec ctrl $dbgStr, qlen ".@{$hash->{helper}->{hlCmdQueue}});
-    my $receiver = sockaddr_in($hash->{PORT}, inet_aton($hash->{IP}));
-    MILIGHT_LowLevelCmdQueue_Add($hash, $actualCmd->{ctrl}, $receiver);
+    MILIGHT_LowLevelCmdQueue_Add($hash, $actualCmd->{ctrl});
   }
   else
   {
@@ -1587,13 +1611,13 @@ MILIGHT_HighLevelCmdQueue_Clear(@)
 sub
 MILIGHT_LowLevelCmdQueue_Add(@)
 {
-  my ($hash, $command, $receiver, $unlock) = @_;
+  my ($hash, $command, $unlock) = @_;
   my $cmd;
 
   $cmd->{command} = $command;
   $cmd->{sender} = $hash;
-  $cmd->{receiver} = $receiver;
-  $cmd->{delay} = 100; # 100ms delay as specified by milight(limitlessled) api
+  $cmd->{receiver} = sockaddr_in($hash->{PORT}, inet_aton($hash->{IP}));
+  $cmd->{delay} = MILIGHT_getBridgeDelay($hash); # min delay as specified by milight(limitlessled) api
   $cmd->{unlock} = $unlock;
   $cmd->{inProgess} = 0;
 
