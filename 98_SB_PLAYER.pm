@@ -1,6 +1,6 @@
 # ############################################################################
 #
-#  FHEM Modue for Squeezebox Players
+#  FHEM Module for Squeezebox Players
 #
 # ############################################################################
 #
@@ -8,7 +8,7 @@
 #
 # ############################################################################
 #
-#  This is absolutley open source. Please feel free to use just as you
+#  This is absolutely open source. Please feel free to use just as you
 #  like. Please note, that no warranty is given and no liability 
 #  granted
 #
@@ -26,7 +26,7 @@
 #
 # ############################################################################
 #  we have the following internals (all UPPERCASE)
-#  PLAYERIP         the IP adress of the player in the network
+#  PLAYERIP         the IP address of the player in the network
 #  PLAYERID         the unique identifier of the player. Mostly the MAC
 #  SERVER           based on the IP and the port as given
 #  IP               the IP of the server
@@ -75,7 +75,7 @@ sub SB_PLAYER_Initialize( $ ) {
     my ($hash) = @_;
 
     # the commands we provide to FHEM
-    # installs the respecitive call-backs for FHEM. The call back in quotes 
+    # installs the respective call-backs for FHEM. The call back in quotes 
     # must be realised as a sub later on in the file
     $hash->{DefFn}      = "SB_PLAYER_Define";
     $hash->{UndefFn}    = "SB_PLAYER_Undef";
@@ -92,7 +92,6 @@ sub SB_PLAYER_Initialize( $ ) {
     $hash->{AttrList}  = "IODev ignore:1,0 do_not_notify:1,0 ";
     $hash->{AttrList}  .= "volumeStep volumeLimit "; 
     $hash->{AttrList}  .= "ttslanguage:de,en,fr ttslink ";
-    $hash->{AttrList}  .= "donotnotify:true,false ";
     $hash->{AttrList}  .= "idismac:true,false ";
     $hash->{AttrList}  .= "serverautoon:true,false ";
     $hash->{AttrList}  .= "fadeinsecs ";
@@ -179,7 +178,7 @@ sub SB_PLAYER_Define( $$ ) {
     $hash->{DISPLAYTYPE} = "?";
     # which model do we see?
     $hash->{MODEL} = "?";
-    # what's the ip adress of the player
+    # what's the ip address of the player
     $hash->{PLAYERIP} = "?";
     # the name of the player as assigned by the server
     $hash->{PLAYERNAME} = "?";
@@ -228,11 +227,6 @@ sub SB_PLAYER_Define( $$ ) {
     # how many secs for fade in when going from stop to play
     if( !defined( $attr{$name}{fadeinsecs} ) ) {
 	$attr{$name}{fadeinsecs} = 10;
-    }
-
-    # do not create FHEM notifies (true=no notifies)
-    if( !defined( $attr{$name}{donotnotify} ) ) {
-	$attr{$name}{donotnotify} = "true";
     }
 
     # is the ID the MAC adress
@@ -338,7 +332,7 @@ sub SB_PLAYER_Define( $$ ) {
 	$hash->{READINGS}{playlists}{TIME} = $tn; 
     }
 
-    # for the FHEM AV Development Guidelinses
+    # for the FHEM AV Development Guidelines
     # we use this to store the currently playing ID to later on return to
     if( !defined( $hash->{READINGS}{currentMedia}{VAL} ) ) {
 	$hash->{READINGS}{currentMedia}{VAL} = "?";
@@ -429,49 +423,48 @@ sub SB_PLAYER_Parse( $$ ) {
     
     Log3( $iohash, 5, "SB_PLAYER_Parse: called with $msg" ); 
 
-    # storing the last in an array is necessery, for tagged responses
+    # storing the last in an array is necessary, for tagged responses
     my ( $modtype, $id, @data ) = split(":", $msg, 3 );
     
     Log3( $iohash, 5, "SB_PLAYER_Parse: type:$modtype, ID:$id CMD:@data" ); 
 
     if( $modtype ne "SB_PLAYER" ) {
-	# funny stuff happens at the disptach function
-	Log3( $iohash, 5, "SB_PLAYER_Parse: wrong type given." );
+        # funny stuff happens at the dispatch function
+        Log3( $iohash, 5, "SB_PLAYER_Parse: wrong type given." );
     }
 
     # let's see what we got. Split the data at the space
-    # necessery, for tagged responses
+    # necessary, for tagged responses
     my @args = split( " ", join( " ", @data ) );
     my $cmd = shift( @args );
 
-
     my $hash = $modules{SB_PLAYER}{defptr}{$id};
+    # Handle undefined MAC address
     if( !$hash ) {
-	Log3( undef, 3, "SB_PLAYER Unknown device with ID $id, " . 
-	      "please define it");
+        Log3( undef, 3, "SB_PLAYER Unknown device with ID $id, please define it");
 
-	# do the autocreate; derive the unique id (MAC adress)
-	my @playermac = ( $id =~ m/.{2}/g );
-	my $idbuf = join( ":", @playermac );
+        # do the autocreate; derive the unique id (MAC address)
+        my @playermac = ( $id =~ m/.{2}/g );
+        my $idbuf = join( ":", @playermac );
 
-	Log3( undef, 3, "SB_PLAYER Dervived the following MAC $idbuf " );
+        Log3( undef, 3, "SB_PLAYER Derived the following MAC $idbuf " );
 
-	if( SB_PLAYER_IsValidMAC( $idbuf ) == 1 ) {
-	    # the MAC Adress is valid
-	    Log3( undef, 3, "SB_PLAYER_Parse: the unknown ID $id is a valid " . 
-		  "MAC Adress" );
-	    # this line supports autocreate
-	    return( "UNDEFINED SB_PLAYER_$id SB_PLAYER $idbuf" );
-	} else {
-	    # the MAC adress is not valid
-	    Log3( undef, 3, "SB_PLAYER_Parse: the unknown ID $id is NOT " . 
-		  "a valid MAC Adress" );
-	    return( undef );
-	}
+        if( SB_PLAYER_IsValidMAC( $idbuf ) == 1 ) {
+            # the MAC Address is valid
+            Log3( undef, 3, "SB_PLAYER_Parse: the unknown ID $id is a valid MAC Adress" );
+            # this line supports autocreate
+            return( "UNDEFINED SB_PLAYER_$id SB_PLAYER $idbuf" );
+        } else {
+            # the MAC address is not valid
+            Log3( undef, 3, "SB_PLAYER_Parse: the unknown ID $id is NOT a valid MAC Adress" );
+            return( undef );
+        }
     }
     
     # so the data is for us
     my $name = $hash->{NAME};
+    
+    # If ignore attribute is set, return without processing
     return "" if(IsIgnored($name));
 
     Log3( $hash, 5, "SB_PLAYER_Parse: $name CMD:$cmd ARGS:@args..." ); 
@@ -482,320 +475,294 @@ sub SB_PLAYER_Parse( $$ ) {
     # signal the update to FHEM
     readingsBeginUpdate( $hash );
 
-    if( $cmd eq "mixer" ) {
-        if (defined($args[0]) && defined($args[1]))
-        {
-	    if( $args[ 0 ] eq "volume" ) {
-	        # update the volume 
-                if ($args[ 1 ] eq "?") {
-		    # it is a request
-                } else {
-		    SB_SERVER_UpdateVolumeReadings( $hash, $args[ 1 ], true );
-	        }
-            }
+    if (( $cmd eq "mixer" ) && (@args > 1)) {
+	      if( $args[ 0 ] eq "volume" ) {
+	          # update the volume 
+            if ($args[ 1 ] eq "?") {
+		            # it is a request
+            } else {
+		        SB_SERVER_UpdateVolumeReadings( $hash, $args[ 1 ], true );
+	          }
         }
 
-    } elsif( $cmd eq "remote" ) {
-	$hash->{ISREMOTESTREAM} = "$args[ 0 ]" if (defined($args[0]));
+    } elsif (( $cmd eq "remote" ) && (@args > 0)) {
+        $hash->{ISREMOTESTREAM} = "$args[ 0 ]";
 
     } elsif( $cmd eq "play" ) {
-	readingsBulkUpdate( $hash, "playStatus", "playing" );
-	SB_PLAYER_Amplifier( $hash );
+        readingsBulkUpdate( $hash, "playStatus", "playing" );
+	      SB_PLAYER_Amplifier( $hash );
 
     } elsif( $cmd eq "stop" ) {
-	readingsBulkUpdate( $hash, "playStatus", "stopped" );
-	SB_PLAYER_Amplifier( $hash );
+        readingsBulkUpdate( $hash, "playStatus", "stopped" );
+        SB_PLAYER_Amplifier( $hash );
 
-    } elsif( $cmd eq "pause" ) {
-	if( $args[ 0 ] eq "0" ) {
-	    readingsBulkUpdate( $hash, "playStatus", "playing" );
-	    SB_PLAYER_Amplifier( $hash );
-	} else {
-	    readingsBulkUpdate( $hash, "playStatus", "paused" );
-	    SB_PLAYER_Amplifier( $hash );
-	} 
+    } elsif (( $cmd eq "pause" ) && (@args > 0)) {
+        if( $args[ 0 ] eq "0" ) {
+            readingsBulkUpdate( $hash, "playStatus", "playing" );
+            SB_PLAYER_Amplifier( $hash );
+        } else {
+            readingsBulkUpdate( $hash, "playStatus", "paused" );
+            SB_PLAYER_Amplifier( $hash );
+        }
 
-    } elsif( $cmd eq "mode" ) {
-	#Log3( $hash, 1, "Playmode: $args[ 0 ]" );
-	# alittle more complex to fulfill FHEM Development guidelines
-        if (defined($args[0])) {
-            if( $args[ 0 ] eq "play" ) {
-	        readingsBulkUpdate( $hash, "playStatus", "playing" );
-                SB_PLAYER_Amplifier( $hash );
-	    } elsif( $args[ 0 ] eq "stop" ) {
-		readingsBulkUpdate( $hash, "playStatus", "stopped" );
-		SB_PLAYER_Amplifier( $hash );
-	    } elsif( $args[ 0 ] eq "pause" ) {
-		readingsBulkUpdate( $hash, "playStatus", "paused" );
-		SB_PLAYER_Amplifier( $hash );
-	    } else {
-		readingsBulkUpdate( $hash, "playStatus", $args[ 0 ] );
-            }
+    } elsif (( $cmd eq "mode" ) && (@args > 0)) {
+        #Log3( $hash, 1, "Playmode: $args[ 0 ]" );
+        # a little more complex to fulfil FHEM Development guidelines
+        if( $args[ 0 ] eq "play" ) {
+            readingsBulkUpdate( $hash, "playStatus", "playing" );
+            SB_PLAYER_Amplifier( $hash );
+        } elsif( $args[ 0 ] eq "stop" ) {
+            readingsBulkUpdate( $hash, "playStatus", "stopped" );
+            SB_PLAYER_Amplifier( $hash );
+        } elsif( $args[ 0 ] eq "pause" ) {
+            readingsBulkUpdate( $hash, "playStatus", "paused" );
+            SB_PLAYER_Amplifier( $hash );
+        } else {
+            readingsBulkUpdate( $hash, "playStatus", $args[ 0 ] );
         }
 
     } elsif( $cmd eq "newmetadata" ) {
-	# the song has changed, but we are easy and just ask the player
-	# sending the requests causes endless loop
-	#IOWrite( $hash, "$hash->{PLAYERMAC} artist ?\n" );
-	#IOWrite( $hash, "$hash->{PLAYERMAC} album ?\n" );
-	#IOWrite( $hash, "$hash->{PLAYERMAC} title ?\n" );
-	IOWrite( $hash, "$hash->{PLAYERMAC} remote ?\n" );
-	#IOWrite( $hash, "$hash->{PLAYERMAC} status 0 500 tags:Kc\n" );
-	SB_PLAYER_CoverArt( $hash );
+        # the song has changed, but we are easy and just ask the player
+        # sending the requests causes endless loop
+        #IOWrite( $hash, "$hash->{PLAYERMAC} artist ?\n" );
+        #IOWrite( $hash, "$hash->{PLAYERMAC} album ?\n" );
+        #IOWrite( $hash, "$hash->{PLAYERMAC} title ?\n" );
+        IOWrite( $hash, "$hash->{PLAYERMAC} remote ?\n" );
+        #IOWrite( $hash, "$hash->{PLAYERMAC} status 0 500 tags:Kc\n" );
+        SB_PLAYER_CoverArt( $hash );
 
-    } elsif( $cmd eq "playlist" ) {
-	if( $args[ 0 ] eq "newsong" ) {
-	    # the song has changed, but we are easy and just ask the player
-	    IOWrite( $hash, "$hash->{PLAYERMAC} artist ?\n" );
-	    IOWrite( $hash, "$hash->{PLAYERMAC} album ?\n" );
-	    IOWrite( $hash, "$hash->{PLAYERMAC} title ?\n" );
-	    SB_PLAYER_CoverArt( $hash );
+    } elsif (( $cmd eq "playlist" ) && (@args > 0)){
+        if( $args[ 0 ] eq "newsong" ) {
+            # the song has changed, but we are easy and just ask the player
+            IOWrite( $hash, "$hash->{PLAYERMAC} artist ?\n" );
+            IOWrite( $hash, "$hash->{PLAYERMAC} album ?\n" );
+            IOWrite( $hash, "$hash->{PLAYERMAC} title ?\n" );
+            SB_PLAYER_CoverArt( $hash );
 
-	    # the id is in the last return. ID not reported for radio stations
-	    # so this will go wrong for e.g. Bayern 3 
-#	    if( $args[ $#args ] =~ /(^[0-9]{1,3})/g ) {
-#		readingsBulkUpdate( $hash, "currentMedia", $1 );
-#	    }
-	} elsif( $args[ 0 ] eq "cant_open" ) {
-	    #TODO: needs to be handled
-	} elsif( $args[ 0 ] eq "open" ) {
-	    readingsBulkUpdate( $hash, "currentMedia", "$args[ 1]" );
-#	    $args[ 2 ] =~ /^(file:)(.*)/g;
-#	    if( defined( $2 ) ) {
-	    #readingsBulkUpdate( $hash, "currentMedia", $2 );
-#	    }
-	    if ($hash->{READINGS}{talkStatus}{VAL} eq "requested") {
-		# should be my talk
-		Log3( $hash, 5, "SB_PLAYER: talkstatus = " . 
-		      $hash->{READINGS}{talkStatus}{VAL} );
-		readingsBulkUpdate( $hash, "talkStatus", "playing" );
-		SB_PLAYER_Amplifier( $hash );
-	    } elsif ($hash->{READINGS}{talkStatus}{VAL} eq "requested " . 
-		     "recall pending" ) {
-		Log3( $hash, 5, "SB_PLAYER: talkstatus = " . 
-		      $hash->{READINGS}{talkStatus}{VAL} );
-		readingsBulkUpdate( $hash, "talkStatus", "playing " . 
-				      "recall pending", 1 );
-	    }
-	} elsif( $args[ 0 ] eq "repeat" ) {
-	    if( $args[ 1 ] eq "0" ) {
-		readingsBulkUpdate( $hash, "repeat", "off" );
-	    } elsif( $args[ 1 ] eq "1") {
-		readingsBulkUpdate( $hash, "repeat", "one" );
-	    } elsif( $args[ 1 ] eq "2") {
-		readingsBulkUpdate( $hash, "repeat", "all" );
-	    } else {
-		readingsBulkUpdate( $hash, "repeat", "?" );
-	    }
-	} elsif( $args[ 0 ] eq "shuffle" ) {
-	    if( $args[ 1 ] eq "0" ) {
-		readingsBulkUpdate( $hash, "shuffle", "off" );
-	    } elsif( $args[ 1 ] eq "1") {
-		readingsBulkUpdate( $hash, "shuffle", "song" );
-	    } elsif( $args[ 1 ] eq "2") {
-		readingsBulkUpdate( $hash, "shuffle", "album" );
-	    } else {
-		readingsBulkUpdate( $hash, "shuffle", "?" );
-	    }
-	} elsif( $args[ 0 ] eq "name" ) {
-	    shift( @args );
-	    readingsBulkUpdate( $hash, "currentPlaylistName", 
-				join( " ", @args ) );
-	} elsif( $args[ 0 ] eq "url" ) {
-	    shift( @args );
-	    readingsBulkUpdate( $hash, "currentPlaylistUrl", 
-				join( " ", @args ) );
+            # the id is in the last return. ID not reported for radio stations
+            # so this will go wrong for e.g. Bayern 3 
+            #	    if( $args[ $#args ] =~ /(^[0-9]{1,3})/g ) {
+            #		readingsBulkUpdate( $hash, "currentMedia", $1 );
+            #	    }
+        } elsif( $args[ 0 ] eq "cant_open" ) {
+            #TODO: needs to be handled
+        } elsif (( $args[ 0 ] eq "open" ) && (@args > 1)) {
+            readingsBulkUpdate( $hash, "currentMedia", "$args[ 1]" );
+            #	    $args[ 2 ] =~ /^(file:)(.*)/g;
+            #	    if( defined( $2 ) ) {
+            #         readingsBulkUpdate( $hash, "currentMedia", $2 );
+            #	    }
+            if ($hash->{READINGS}{talkStatus}{VAL} eq "requested") {
+		            # should be my talk
+                Log3( $hash, 5, "SB_PLAYER: talkstatus = " . 
+                $hash->{READINGS}{talkStatus}{VAL} );
+                readingsBulkUpdate( $hash, "talkStatus", "playing" );
+                SB_PLAYER_Amplifier( $hash );
+            } elsif ($hash->{READINGS}{talkStatus}{VAL} eq "requested recall pending" ) {
+                Log3( $hash, 5, "SB_PLAYER: talkstatus = " . 
+                $hash->{READINGS}{talkStatus}{VAL} );
+                readingsBulkUpdate( $hash, "talkStatus", "playing recall pending", 1 );
+            }
+        } elsif (( $args[ 0 ] eq "repeat" ) && (@args > 1)) {
+            if( $args[ 1 ] eq "0" ) {
+                readingsBulkUpdate( $hash, "repeat", "off" );
+            } elsif( $args[ 1 ] eq "1") {
+                readingsBulkUpdate( $hash, "repeat", "one" );
+            } elsif( $args[ 1 ] eq "2") {
+                readingsBulkUpdate( $hash, "repeat", "all" );
+            } else {
+                readingsBulkUpdate( $hash, "repeat", "?" );
+            }
+        } elsif (( $args[ 0 ] eq "shuffle" ) && (@args > 1)) {
+            if( $args[ 1 ] eq "0" ) {
+                readingsBulkUpdate( $hash, "shuffle", "off" );
+            } elsif( $args[ 1 ] eq "1") {
+                readingsBulkUpdate( $hash, "shuffle", "song" );
+            } elsif( $args[ 1 ] eq "2") {
+                readingsBulkUpdate( $hash, "shuffle", "album" );
+            } else {
+                readingsBulkUpdate( $hash, "shuffle", "?" );
+            }
+        } elsif (( $args[ 0 ] eq "name" ) && (@args > 1)) {
+            shift( @args );
+            readingsBulkUpdate( $hash, "currentPlaylistName", join( " ", @args ) );
+        } elsif (( $args[ 0 ] eq "url" ) && (@args > 1)) {
+            shift( @args );
+            readingsBulkUpdate( $hash, "currentPlaylistUrl", join( " ", @args ) );
 
-	} elsif( $args[ 0 ] eq "stop" ) {
-	    if( $hash->{READINGS}{talkStatus}{VAL} eq "playing recall pending" ) {
-		# I was waiting for the end of the talk and a playlist stopped
-		# need to recall saved playlist and saved status
-		Log3( $hash, 5, "SB_PLAYER: stop talking - talkStatus was " . 
-		      "$hash->{READINGS}{talkStatus}{VAL}" );
-		readingsBulkUpdate( $hash, "talkStatus", "stopped" );
-		# recall
-		if( $hash->{READINGS}{savedState}{VAL} eq "off" ) {
-		    # I need to call the playlist and shut off the SB
-		    IOWrite( $hash, "$hash->{PLAYERMAC} playlist resume " . 
-			     "fhem_$hash->{NAME} noplay:1\n" ); 
-		    IOWrite( $hash, "$hash->{PLAYERMAC} power 0\n" );
-		    readingsBulkUpdate( $hash, "power", "off" );
-		    SB_PLAYER_Amplifier( $hash );
-		    Log3( $hash, 5, "SB_PLAYER: recall : off" );
-		} elsif( $hash->{READINGS}{savedPlayStatus}{VAL} eq "stopped" ) {
-		    # Need to recall playlist + stop
-		    IOWrite( $hash, "$hash->{PLAYERMAC} playlist resume " . 
-			     "fhem_$hash->{NAME} noplay:1\n" );
-		    IOWrite( $hash, "$hash->{PLAYERMAC} stop\n" );
-		    Log3( $hash, 5, "SB_PLAYER: recall : stop" );
-		} elsif( $hash->{READINGS}{savedPlayStatus}{VAL} eq "paused" ) {
-		    # Need to recall playlist + pause
-		    IOWrite( $hash, "$hash->{PLAYERMAC} playlist resume " . 
-			     "fhem_$hash->{NAME} noplay:1\n" );
-		    IOWrite( $hash, "$hash->{PLAYERMAC} pause 1\n" );
-		    Log3( $hash, 5, "SB_PLAYER: recall : pause 1" );
-		} else {
-		    # Need to recall and play playlist
-		    IOWrite( $hash, "$hash->{PLAYERMAC} playlist resume " . 
-			     "fhem_$hash->{NAME}\n" );
-		    Log3( $hash, 5, "SB_PLAYER: recall now - talkStatus=" . 
-			  "$hash->{READINGS}{talkStatus}{VAL}" );
-		}
-	    } elsif( $hash->{READINGS}{talkStatus}{VAL} eq "playing" ) {
-		# I was waiting for the end of the talk and a playlist stopped 
-		# keep all like this
-		Log3( $hash, 5, "SB_PLAYER: stop talking - talkStatus was " . 
-		      "$hash->{READINGS}{talkStatus}{VAL}" );
-		readingsBulkUpdate( $hash, "talkStatus", "stopped" );
-	    } else {
-		# Should be an ordinary playlist stop
-		Log3( $hash, 5, "SB_PLAYER: no recall pending - talkstatus " .
-		      "= $hash->{READINGS}{talkStatus}{VAL}" );
-	    }  
+        } elsif( $args[ 0 ] eq "stop" ) {
+            if( $hash->{READINGS}{talkStatus}{VAL} eq "playing recall pending" ) {
+                # I was waiting for the end of the talk and a playlist stopped
+                # need to recall saved playlist and saved status
+                Log3( $hash, 5, "SB_PLAYER: stop talking - talkStatus was $hash->{READINGS}{talkStatus}{VAL}" );
+                readingsBulkUpdate( $hash, "talkStatus", "stopped" );
+                # recall
+                if( $hash->{READINGS}{savedState}{VAL} eq "off" ) {
+                    # I need to call the playlist and shut off the SB
+                    IOWrite( $hash, "$hash->{PLAYERMAC} playlist resume fhem_$hash->{NAME} noplay:1\n" ); 
+                    IOWrite( $hash, "$hash->{PLAYERMAC} power 0\n" );
+                    readingsBulkUpdate( $hash, "power", "off" );
+                    SB_PLAYER_Amplifier( $hash );
+                    Log3( $hash, 5, "SB_PLAYER: recall : off" );
+                } elsif( $hash->{READINGS}{savedPlayStatus}{VAL} eq "stopped" ) {
+                    # Need to recall playlist + stop
+                    IOWrite( $hash, "$hash->{PLAYERMAC} playlist resume fhem_$hash->{NAME} noplay:1\n" );
+                    IOWrite( $hash, "$hash->{PLAYERMAC} stop\n" );
+                    Log3( $hash, 5, "SB_PLAYER: recall : stop" );
+                } elsif( $hash->{READINGS}{savedPlayStatus}{VAL} eq "paused" ) {
+                    # Need to recall playlist + pause
+                    IOWrite( $hash, "$hash->{PLAYERMAC} playlist resume fhem_$hash->{NAME} noplay:1\n" );
+                    IOWrite( $hash, "$hash->{PLAYERMAC} pause 1\n" );
+                    Log3( $hash, 5, "SB_PLAYER: recall : pause 1" );
+                } else {
+                    # Need to recall and play playlist
+                    IOWrite( $hash, "$hash->{PLAYERMAC} playlist resume fhem_$hash->{NAME}\n" );
+                    Log3( $hash, 5, "SB_PLAYER: recall now - talkStatus=$hash->{READINGS}{talkStatus}{VAL}" );
+                }
+            } elsif( $hash->{READINGS}{talkStatus}{VAL} eq "playing" ) {
+                # I was waiting for the end of the talk and a playlist stopped 
+                # keep all like this
+                Log3( $hash, 5, "SB_PLAYER: stop talking - talkStatus was $hash->{READINGS}{talkStatus}{VAL}" );
+                readingsBulkUpdate( $hash, "talkStatus", "stopped" );
+            } else {
+                # Should be an ordinary playlist stop
+                Log3( $hash, 5, "SB_PLAYER: no recall pending - talkstatus = $hash->{READINGS}{talkStatus}{VAL}" );
+            }
 	    
-	} else {
-	}
-	# check if this caused going to play, as not send automatically
-	IOWrite( $hash, "$hash->{PLAYERMAC} mode ?\n" );
+        } else {
+        }
+
+        # check if this caused going to play, as not send automatically
+        IOWrite( $hash, "$hash->{PLAYERMAC} mode ?\n" );
 
     } elsif( $cmd eq "playlistcontrol" ) {
-	#playlistcontrol cmd:load artist_id:22 count:4
+        #playlistcontrol cmd:load artist_id:22 count:4
 
-    } elsif( $cmd eq "connected" ) {
-	readingsBulkUpdate( $hash, "connected", $args[ 0 ] );
-	readingsBulkUpdate( $hash, "presence", "present" );
+    } elsif (( $cmd eq "connected" ) && (@args > 0)) {
+        readingsBulkUpdate( $hash, "connected", $args[ 0 ] );
+        readingsBulkUpdate( $hash, "presence", "present" );
 
-    } elsif( $cmd eq "name" ) {
-	$hash->{PLAYERNAME} = join( " ", @args );
+    } elsif (( $cmd eq "name" ) && (@args > 0)) {
+        $hash->{PLAYERNAME} = join( " ", @args );
 
-    } elsif( $cmd eq "title" ) {
-	readingsBulkUpdate( $hash, "currentTitle", join( " ", @args ) );
+    } elsif (( $cmd eq "title" ) && (@args > 0)) {
+        readingsBulkUpdate( $hash, "currentTitle", join( " ", @args ) );
 
-    } elsif( $cmd eq "artist" ) {
-	readingsBulkUpdate( $hash, "currentArtist", join( " ", @args ) );
+    } elsif (( $cmd eq "artist" ) && (@args > 0)) {
+        readingsBulkUpdate( $hash, "currentArtist", join( " ", @args ) );
 
-    } elsif( $cmd eq "album" ) {
-	readingsBulkUpdate( $hash, "currentAlbum", join( " ", @args ) );
+    } elsif (( $cmd eq "album" ) && (@args > 0)) {
+        readingsBulkUpdate( $hash, "currentAlbum", join( " ", @args ) );
 
-    } elsif( $cmd eq "player" ) {
-	if( $args[ 0 ] eq "model" ) {
-	    $hash->{MODEL} = $args[ 1 ];
-	} elsif( $args[ 0 ] eq "canpoweroff" ) {
-	    $hash->{CANPOWEROFF} = $args[ 1 ];
-	} elsif( $args[ 0 ] eq "ip" ) {
-	    $hash->{PLAYERIP} = "$args[ 1 ]";
-	    if( defined( $args[ 2 ] ) ) {
-		$hash->{PLAYERIP} .= ":$args[ 2 ]";
-	    }
-	    
-	} else {
-	}
+    } elsif (( $cmd eq "player" ) && (@args > 1)) {
+        if( $args[ 0 ] eq "model" ) {
+            $hash->{MODEL} = $args[ 1 ];
+        } elsif( $args[ 0 ] eq "canpoweroff" ) {
+            $hash->{CANPOWEROFF} = $args[ 1 ];
+        } elsif( $args[ 0 ] eq "ip" ) {
+            $hash->{PLAYERIP} = "$args[ 1 ]";
+            if( defined( $args[ 2 ] ) ) {
+                $hash->{PLAYERIP} .= ":$args[ 2 ]";
+            }
+        } else {
+        }
 
     } elsif( $cmd eq "power" ) {
-	if (!(@args)) {
-	    # power toggle : should only happen when called with SB CLI
-	    if (ReadingsVal($hash->{NAME}, "state", "off") eq "on") {
-		readingsBulkUpdate( $hash, "presence", "absent" );
-		readingsBulkUpdate( $hash, "state", "off" );
-		readingsBulkUpdate( $hash, "power", "off" );
-		SB_PLAYER_Amplifier( $hash );
-	    } else {
-		readingsBulkUpdate( $hash, "state", "on" );
-		readingsBulkUpdate( $hash, "power", "on" );
-		SB_PLAYER_Amplifier( $hash );
-	    }
-	} elsif( $args[ 0 ] eq "1" ) {
-	    readingsBulkUpdate( $hash, "state", "on" );
-	    readingsBulkUpdate( $hash, "power", "on" );
-	    SB_PLAYER_Amplifier( $hash );
-	} elsif( $args[ 0 ] eq "0" ) {
-	    readingsBulkUpdate( $hash, "presence", "absent" );
-	    readingsBulkUpdate( $hash, "state", "off" );
-	    readingsBulkUpdate( $hash, "power", "off" );
-	    SB_PLAYER_Amplifier( $hash );
-	} else {
-	    # should be "?" normally
-	}
+        if (!(@args)) {
+            # power toggle : should only happen when called with SB CLI
+            if (ReadingsVal($hash->{NAME}, "state", "off") eq "on") {
+                readingsBulkUpdate( $hash, "presence", "absent" );
+                readingsBulkUpdate( $hash, "state", "off" );
+                readingsBulkUpdate( $hash, "power", "off" );
+                SB_PLAYER_Amplifier( $hash );
+            } else {
+                readingsBulkUpdate( $hash, "state", "on" );
+                readingsBulkUpdate( $hash, "power", "on" );
+                SB_PLAYER_Amplifier( $hash );
+            }
+        } elsif( $args[ 0 ] eq "1" ) {
+            readingsBulkUpdate( $hash, "state", "on" );
+            readingsBulkUpdate( $hash, "power", "on" );
+            SB_PLAYER_Amplifier( $hash );
+        } elsif( $args[ 0 ] eq "0" ) {
+            readingsBulkUpdate( $hash, "presence", "absent" );
+            readingsBulkUpdate( $hash, "state", "off" );
+            readingsBulkUpdate( $hash, "power", "off" );
+            SB_PLAYER_Amplifier( $hash );
+        } else {
+            # should be "?" normally
+        }
 
-    } elsif( $cmd eq "displaytype" ) {
-	$hash->{DISPLAYTYPE} = $args[ 0 ];
+    } elsif (( $cmd eq "displaytype" ) && (@args > 0)) {
+        $hash->{DISPLAYTYPE} = $args[ 0 ];
 
-    } elsif( $cmd eq "signalstrength" ) {
-	if( $args[ 0 ] eq "0" ) {
-	    readingsBulkUpdate( $hash, "signalstrength", "wired" );
-	} else {
-	    readingsBulkUpdate( $hash, "signalstrength", "$args[ 0 ]" );
-	}
+    } elsif (( $cmd eq "signalstrength" ) && (@args > 0)) {
+        if( $args[ 0 ] eq "0" ) {
+            readingsBulkUpdate( $hash, "signalstrength", "wired" );
+        } else {
+            readingsBulkUpdate( $hash, "signalstrength", "$args[ 0 ]" );
+        }
 	
-    } elsif( $cmd eq "alarm" ) {
-	if( $args[ 0 ] eq "sound" ) {
-	    # fired when an alarm goes off
-	} elsif( $args[ 0 ] eq "end" ) {
-	    # fired when an alarm ends
-	} elsif( $args[ 0 ] eq "snooze" ) {
-	    # fired when an alarm is snoozed by the user
-	} elsif( $args[ 0 ] eq "snooze_end" ) {
-	    # fired when an alarm comes back from snooze
-	} elsif( $args[ 0 ] eq "add" ) {
-	    # fired when an alarm has been added. 
-	    # this setup goes wrong, when an alarm is defined manually
-	    # the last entry in the array shall contain th id
-	    my $idstr = $args[ $#args ];
-	    if( $idstr =~ /^(id:)([0-9a-zA-Z\.]+)/g ) {
-		readingsBulkUpdate( $hash, "alarmid$hash->{LASTALARM}", $2 );
-	    } else {
-	    }
-	} else {
-	}
+    } elsif (( $cmd eq "alarm" ) && (@args > 0)) {
+        if( $args[ 0 ] eq "sound" ) {
+            # fired when an alarm goes off
+        } elsif( $args[ 0 ] eq "end" ) {
+            # fired when an alarm ends
+        } elsif( $args[ 0 ] eq "snooze" ) {
+            # fired when an alarm is snoozed by the user
+        } elsif( $args[ 0 ] eq "snooze_end" ) {
+            # fired when an alarm comes back from snooze
+        } elsif( $args[ 0 ] eq "add" ) {
+            # fired when an alarm has been added. 
+            # this setup goes wrong, when an alarm is defined manually
+            # the last entry in the array shall contain the id
+            my $idstr = $args[ $#args ];
+            if( $idstr =~ /^(id:)([0-9a-zA-Z\.]+)/g ) {
+          readingsBulkUpdate( $hash, "alarmid$hash->{LASTALARM}", $2 );
+            } else {
+            }
+        } else {
+        }
 
-
-    } elsif( $cmd eq "alarms" ) {
-	SB_PLAYER_ParseAlarms( $hash, @args );
+    } elsif (( $cmd eq "alarms" ) && (@args > 0)) {
+        SB_PLAYER_ParseAlarms( $hash, @args );
 
     } elsif( $cmd eq "showbriefly" ) {
-	# to be ignored, we get two hashes
+        # to be ignored, we get two hashes
 
-    } elsif( ($cmd eq "unknownir" ) || ($cmd eq "ir" ) ) {
-	readingsBulkUpdate( $hash, "lastir", $args[ 0 ] );
+    } elsif ((($cmd eq "unknownir" ) || ($cmd eq "ir" )) && (@args > 0)) {
+        readingsBulkUpdate( $hash, "lastir", $args[ 0 ] );
 
-    } elsif( $cmd eq "status" ) {
-	SB_SERVER_ParsePlayerStatus( $hash, \@args );
+    } elsif (( $cmd eq "status" ) && (@args > 0)) {
+        SB_SERVER_ParsePlayerStatus( $hash, \@args );
 
-    } elsif( $cmd eq "client" ) {
-	if( ($args[ 0 ] eq "disconnect") || ($args[ 0 ] eq "connect") ) {
-	    # filter "client disconnect" and "client reconnect" messages 
-	}
+    } elsif (( $cmd eq "client" ) && (@args > 0)) {
+        if( ($args[ 0 ] eq "disconnect") || ($args[ 0 ] eq "connect") ) {
+            # filter "client disconnect" and "client reconnect" messages 
+        }
 
-    } elsif( $cmd eq "prefset" ) {
-	if( $args[ 0 ] eq "server" ) {
-	    if( $args[ 1 ] eq "currentSong" ) {
-		readingsBulkUpdate( $hash, "currentMedia", $args[ 2 ] );
-	    } elsif( $args[ 1 ] eq "volume" ) {
-		SB_SERVER_UpdateVolumeReadings( $hash, $args[ 2 ], true );
-	    }
-	} else {
-	    readingsBulkUpdate( $hash, "lastunkowncmd", 
-				  $cmd . " " . join( " ", @args ) );
-	}
-
+    } elsif (( $cmd eq "prefset" ) && (@args > 0)) {
+        if (( $args[ 0 ] eq "server" ) && (@args > 2)) {
+            if( $args[ 1 ] eq "currentSong" ) {
+                readingsBulkUpdate( $hash, "currentMedia", $args[ 2 ] );
+            } elsif( $args[ 1 ] eq "volume" ) {
+                SB_SERVER_UpdateVolumeReadings( $hash, $args[ 2 ], true );
+            }
+        } else {
+            readingsBulkUpdate( $hash, "lastunknowncmd", $cmd . " " . join( " ", @args ) );
+        }
 
     } elsif( $cmd eq "NONE" ) {
-	# we shall never end up here, as cmd=NONE is used by the server for 
-	# autocreate
+        # we shall never end up here, as cmd=NONE is used by the server for 
+        # autocreate
 
     } else {
-	# unkown command, we push it to the last command thingy
-	readingsBulkUpdate( $hash, "lastunkowncmd", 
-			      $cmd . " " . join( " ", @args ) );
+        # unknown command, we push it to the last command thingy
+        readingsBulkUpdate( $hash, "lastunknowncmd", $cmd . " " . join( " ", @args ) );
     }
     
     # and signal the end of the readings update
-    
-    if( AttrVal( $name, "donotnotify", "false" ) eq "true" ) {
-	readingsEndUpdate( $hash, 0 );
-    } else {
-	readingsEndUpdate( $hash, 1 );
-    }
+    readingsEndUpdate( $hash, 0 );
     
     Log3( $hash, 5, "SB_PLAYER_Parse: $name: leaving" );
 
@@ -868,7 +835,7 @@ sub SB_PLAYER_Get( $@ ) {
 	return( "$hash->{FAVSELECT}" );
 
     } else {
-	my $msg = "SB_PLAYER_Get: $name: unkown argument";
+	my $msg = "SB_PLAYER_Get: $name: unknown argument";
 	Log3( $hash, 5, $msg );
 	return( $msg );
     } 
@@ -1116,7 +1083,7 @@ sub SB_PLAYER_Set( $@ ) {
 	    Log3( $hash, 5, "SB_PLAYER_Set($name): implement identifiers with " .
 		  "spaces etc. inside" );
 	    # the spaces might need %20 so we might need some more here
-	    # please introduce a fromat like genre:xxx album:xxx artist:xxx
+	    # please introduce a format like genre:xxx album:xxx artist:xxx
 	    # and then run the results through uri_escape
 	    IOWrite( $hash, "$hash->{PLAYERMAC} playlist loadalbum $arg[ 0 ] " . 
 		     "$arg[ 1 ] $arg[ 2 ]\n" );
@@ -1527,31 +1494,30 @@ sub SB_PLAYER_ParseAlarms( $@ ) {
     my $name = $hash->{NAME};
 
     if( $data[ 0 ] =~ /^([0-9])*/ ) {
-	shift( @data );
+        shift( @data );
     }
 
     if( $data[ 0 ] =~ /^([0-9])*/ ) {
-	shift( @data );
+        shift( @data );
     }
 
     if( $data[ 0 ] =~ /^(fade:)([0|1]?)/ ) {
-	shift( @data );
-	if( $2 eq "0" ) {
-	    $hash->{ALARMSFADEIN} = "yes";
-	} else {
-	    $hash->{ALARMSFADEIN} = "no";
-	}
-
-    } 
+        shift( @data );
+        if( $2 eq "0" ) {
+	          $hash->{ALARMSFADEIN} = "yes";
+        } else {
+            $hash->{ALARMSFADEIN} = "no";
+        }
+    }
     
     if( $data[ 0 ] =~ /^(count:)([0-9].*)/ ) {
-	shift( @data );
-	$hash->{ALARMSCOUNT} = scalar( $2 );
+        shift( @data );
+        $hash->{ALARMSCOUNT} = scalar( $2 );
     }
 
     if( $hash->{ALARMSCOUNT} > 2 ) {
-	Log3( $hash, 2, "SB_PLAYER_Alarms($name): Player has more than " . 
-	      "two alarms. So not fully under control by FHEM" );
+        Log3( $hash, 2, "SB_PLAYER_Alarms($name): Player has more than " . 
+	        "two alarms. So not fully under control by FHEM" );
     }
 
 }
@@ -1892,14 +1858,17 @@ sub SB_SERVER_UpdateVolumeReadings( $$$ ) {
     <a name="SB_PLAYER"></a>
     <h3>SB_PLAYER</h3>
     <ul>
-    Define a Squeezebox Player. Help needs to be done still.
+    The SB_PLAYER module represents a Squeezebox Player connected to logitech media server.
+    <br> You need to define a SB_SERVER device first.
     <br><br>
 
     <a name="SB_PLAYERdefine"></a>
     <b>Define</b>
     <ul>
-    <code>define &lt;name&gt; SB_PLAYER</code>
+    <code>define &lt;name&gt; SB_PLAYER &lt;playerid&gt; &lt;ampl:FHEM_NAME&gt; &lt;coverart:FHEMNAME&gt;"</code>
     <br><br>
+    
+    Defines a player connected to a <a href="#SBServer">SB_SERVER</a>.<br><br>
 
   Example:
     <ul>
@@ -1926,6 +1895,8 @@ sub SB_SERVER_UpdateVolumeReadings( $$$ ) {
     so the FHEMWEB frontend can construct a dropdown and offer on/off
     switches. Example: attr SB_PLAYERName setList on off
     </li>
+    <li><a href="#ignore">ignore</a></li>
+    <li><a href="#do_not_notify">do_not_notify</a></li>
     <li><a href="#readingFnAttributes">readingFnAttributes</a></li>
     </ul>
     <br>
