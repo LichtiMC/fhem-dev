@@ -1045,6 +1045,9 @@ MILIGHT_White_setHSV(@)
   # Calculate brightness hardware value (10 steps for white)
   my $maxWl = (100 / MILIGHT_dimSteps($hash));
   my $wl = round($val / $maxWl);
+  
+  # On first load, whiteLevel won't be defined, define it.
+  $hash->{helper}->{whiteLevel} = $wl if (!defined($hash->{helper}->{whiteLevel}));
 
   if (ReadingsVal($hash, "brightness", 0) > 0)
   {
