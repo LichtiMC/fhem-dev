@@ -279,9 +279,9 @@ sub SB_PLAYER_Define( $$ ) {
     }
 
     # the last unkown command
-    if( !defined( $hash->{READINGS}{lastunkowncmd}{VAL} ) ) {
-	$hash->{READINGS}{lastunkowncmd}{VAL} = "none";
-	$hash->{READINGS}{lastunkowncmd}{TIME} = $tn; 
+    if( !defined( $hash->{READINGS}{lastunknowncmd}{VAL} ) ) {
+	$hash->{READINGS}{lastunknowncmd}{VAL} = "none";
+	$hash->{READINGS}{lastunknowncmd}{TIME} = $tn; 
     }
 
     # the last unkown IR command
