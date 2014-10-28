@@ -43,6 +43,16 @@
 #  $Id: 98_SB_PLAYER.pm 6310 2014-07-23 11:29:30Z fhemrocks $
 #
 # ############################################################################
+# TODO:
+# Save/Restore currentMedia + playlist when save/Recall:
+#currentMedia mms://wmlive.bbc.co.uk/wms/england/lrsomerset?MSWMExt=.asf
+# currentPlaylistName ?
+# currentPlaylistUrl ?
+# currentTitle BBC Somerset
+# favorites BBCSomerset
+
+
+# SB_SERVER - regular status request?
 
 
 package main;
@@ -547,7 +557,7 @@ sub SB_PLAYER_Parse( $$ ) {
         } elsif( $args[ 0 ] eq "cant_open" ) {
             #TODO: needs to be handled
         } elsif (( $args[ 0 ] eq "open" ) && (@args > 1)) {
-            readingsBulkUpdate( $hash, "currentMedia", "$args[ 1]" );
+            readingsBulkUpdate( $hash, "currentMedia", "@args" );
             #        $args[ 2 ] =~ /^(file:)(.*)/g;
             #        if( defined( $2 ) ) {
             #         readingsBulkUpdate( $hash, "currentMedia", $2 );
@@ -811,11 +821,11 @@ sub SB_PLAYER_Get( $@ ) {
     
     my $name = $hash->{NAME};
 
-    Log3( $hash, 1, "SB_PLAYER_Get: called with @a" );
+    Log3( $hash, 4, "SB_PLAYER_Get: called with @a" );
 
     if( @a < 2 ) {
         my $msg = "SB_PLAYER_Get: $name: wrong number of arguments";
-        Log3( $hash, 5, $msg );
+        Log3( $hash, 3, $msg );
         return( $msg );
     }
 
@@ -836,7 +846,7 @@ sub SB_PLAYER_Get( $@ ) {
 
     } else {
         my $msg = "SB_PLAYER_Get: $name: unknown argument";
-        Log3( $hash, 5, $msg );
+        Log3( $hash, 3, $msg );
         return( $msg );
     } 
 
@@ -932,6 +942,7 @@ sub SB_PLAYER_Set( $@ ) {
         }
 
     } elsif( $cmd eq $hash->{FAVSET} ) {
+	Log3( $hash, 5, "SB_PLAYER_Set: favorites. Args: @arg" );
         if( defined( $SB_PLAYER_Favs{$name}{$arg[0]}{ID} ) ) {
             my $fid = $SB_PLAYER_Favs{$name}{$arg[0]}{ID};
             IOWrite( $hash, "$hash->{PLAYERMAC} favorites playlist " . 
@@ -1023,11 +1034,11 @@ sub SB_PLAYER_Set( $@ ) {
 
     } elsif ( $cmd eq "talk" ) {
         # Talk without save/recall
-        return SB_PLAYER_Talk($hash, 0, @arg);
+        return SB_PLAYER_Talk($hash, $name, 0, @arg);
         
-    } elsif ( $cmd eq "talkRecall" ) {
+    } elsif ( $cmd eq "talkrecall" ) {
         # Talk with save/recall
-        return SB_PLAYER_Talk($hash, 1, @arg);
+        return SB_PLAYER_Talk($hash, $name, 1, @arg);
         
     } elsif ( $cmd eq "playlist" ) {
         if ( @arg < 2 ) {
@@ -1229,7 +1240,7 @@ sub SB_PLAYER_RecallState(@) {
 sub SB_PLAYER_Talk(@) {
 
     # Parameters (recall=0,1 if save/recall should be done)
-    my ($hash, $recall, @arg) = @_;
+    my ($hash, $name, $recall, @arg) = @_;
     
     Log3( $hash, 5, "SB_PLAYER_Talk. Recall: $recall; arg: @arg");
     
@@ -1267,7 +1278,7 @@ sub SB_PLAYER_Talk(@) {
     # Request recall of player state if requested
     if ($recall == 1) {
         Log3 ( $hash, 5, "SB_PLAYER_Talk: Recalling state");
-        SB_PLAYER_RecallState(@);
+        SB_PLAYER_RecallState($hash);
     }
     
     return( undef );
@@ -1837,7 +1848,7 @@ sub SB_SERVER_ParsePlayerStatus( $$ ) {
         }
     }
 
-    readingsEndUpdate( $hash, 1 );
+    readingsEndUpdate( $hash, 0 );
 
     # update the cover art
     SB_PLAYER_CoverArt( $hash );
