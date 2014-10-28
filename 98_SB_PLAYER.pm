@@ -875,7 +875,7 @@ sub SB_PLAYER_Set( $@ ) {
                   "mute:noArg repeat:off,one,all show statusRequest:noArg " . 
                   "shuffle:on,off next:noArg prev:noArg playlist sleep " . 
                   "alarm1 alarm2 allalarms:enable,disable cliraw talk " . 
-                  "unsync:noArg ";
+                  "talkRecall unsync:noArg ";
         # add the favorites
         $res .= $hash->{FAVSET} . ":" . $hash->{FAVSTR} . " ";
         # ad the syncmasters
@@ -1009,7 +1009,7 @@ sub SB_PLAYER_Set( $@ ) {
             return( $msg );
         }      
 
-    } elsif ( $cmd eq "show" )
+    } elsif ( $cmd eq "show" ) {
         # set <name> show line1:text line2:text duration:ss
         my $v = join( " ", @arg );
         my @buf = split( "line1:", $v );
@@ -1022,32 +1022,13 @@ sub SB_PLAYER_Set( $@ ) {
         IOWrite( $hash, $cmdstr );
 
     } elsif ( $cmd eq "talk" ) {
-        my $outstr = join( "+", @arg );
-        $outstr = uri_escape( $outstr );
-        $outstr = AttrVal( $name, "ttslink", "none" )  
-            . "&tl=" . AttrVal( $name, "ttslanguage", "de" )
-            . "&q=". $outstr; 
-
-        Log3( $hash, 1, "SB_PLAYER_Set: talk: $name: $outstr" );
-        #readingsSingleUpdate( $hash, "talkStatus", "requested", 1 );
-
-        # example for making it speak some google text-to-speech
-        #IOWrite( $hash, "$hash->{PLAYERMAC} playlist play " . $outstr . "\n" );
-
-        if( $hash->{READINGS}{talkStatus}{VAL} eq "stopped") {
-            # new talk, no talk already playing
-            IOWrite( $hash, "$hash->{PLAYERMAC} playlist clear\n" );
-            IOWrite( $hash, "$hash->{PLAYERMAC} playlist add ". $outstr . "\n" );
-            IOWrite( $hash, "$hash->{PLAYERMAC} play\n" );
-            Log3( $hash, 1, "SB_PLAYER: talk: initialize playlist" );
-        } else {
-            # already playing
-            IOWrite( $hash, "$hash->{PLAYERMAC} playlist add ". $outstr . "\n" );
-            Log3( $hash, 1, "SB_PLAYER: talkStatus = $hash->{READINGS}{talkStatus}{VAL}" );
-            Log3( $hash, 1, "SB_PLAYER: talk: add $outstr" );
-        }
-        readingsSingleUpdate( $hash, "talkStatus", "requested", 1 );
-
+        # Talk without save/recall
+        return SB_PLAYER_Talk($hash, 0, @arg);
+        
+    } elsif ( $cmd eq "talkRecall" ) {
+        # Talk with save/recall
+        return SB_PLAYER_Talk($hash, 1, @arg);
+        
     } elsif ( $cmd eq "playlist" ) {
         if ( @arg < 2 ) {
             my $msg = "SB_PLAYER_Set: not enough arguments for Playlist given.";
@@ -1109,62 +1090,14 @@ sub SB_PLAYER_Set( $@ ) {
         return( undef );
 
     } elsif ( $cmd eq "save" ) {
-        # saves player's context
-        Log3( $hash, 5, "SB_PLAYER_Set: save " ); 
-        readingsSingleUpdate( $hash, 
-                  "savedState", 
-                  $hash->{READINGS}{state}{VAL}, 
-                  1 );
-        readingsSingleUpdate( $hash, 
-                  "savedPlayStatus", 
-                  $hash->{READINGS}{playStatus}{VAL}, 
-                  1 );
-        IOWrite( $hash, "$hash->{PLAYERMAC} playlist save fhem_$hash->{NAME}\n" );
-        #    if( $hash->{READINGS}{savedState}{VAL} eq "pause" ) {
-        #        #  last commands changed the status to stopped ???
-        #        IOWrite( $hash, "$hash->{PLAYERMAC} pause 1\n" );
-        #    }
-        return( undef );
-
+        # saves player's state
+        Log3( $hash, 5, "SB_PLAYER_Set: save " );
+        return SB_PLAYER_SaveState($hash);
+        
     } elsif ( $cmd eq "recall" ) {
-        if( defined( $hash->{READINGS}{savedState}{VAL} ) ) {
-            # something has been saved
-            Log3( $hash, 1, "SB_PLAYER_Set: recall( $hash->{READINGS}{savedState}{VAL}, $hash->{READINGS}{savedPlayStatus}{VAL})" );
-            if( $hash->{READINGS}{talkStatus}{VAL} ne "stopped" ) {
-                # I am talking : need to wait for the end i.e. for a stop
-                if( !($hash->{READINGS}{talkStatus}{VAL} =~/pending/ )) {
-                    readingsSingleUpdate( $hash, "talkStatus", $hash->{READINGS}{talkStatus}{VAL}." recall pending", 1 );
-                }
-                Log3( $hash, 1, "SB_PLAYER: recall : need to wait for stop - talkStatus=$hash->{READINGS}{talkStatus}{VAL}" );
-            } else {
-                # I am not talking, recall anyway
-                if( $hash->{READINGS}{savedState}{VAL} eq "off" ) {
-                    # I need to call the playlist and shut off the SB
-                    IOWrite( $hash, "$hash->{PLAYERMAC} playlist resume fhem_$hash->{NAME} noplay:1\n" ); 
-                    IOWrite( $hash, "$hash->{PLAYERMAC} power 0\n" );
-                    readingsSingleUpdate( $hash, "power", "off", 1 );
-                    SB_PLAYER_Amplifier( $hash );
-                    Log3( $hash, 1, "SB_PLAYER: recall : off" );
-                } elsif( $hash->{READINGS}{savedPlayStatus}{VAL} eq "stopped" ) {
-                    # Need to recall playlist + stop
-                    IOWrite( $hash, "$hash->{PLAYERMAC} playlist resume fhem_$hash->{NAME} noplay:1\n" );
-                    IOWrite( $hash, "$hash->{PLAYERMAC} stop\n" );
-                    Log3( $hash, 1, "SB_PLAYER: recall : stop" );
-                } elsif( $hash->{READINGS}{savedPlayStatus}{VAL} eq "paused" ) {
-                    # Need to recall playlist + pause
-                    IOWrite( $hash, "$hash->{PLAYERMAC} playlist resume fhem_$hash->{NAME} noplay:1\n" );
-                    IOWrite( $hash, "$hash->{PLAYERMAC} pause 1\n" );
-                    Log3( $hash, 1, "SB_PLAYER: recall : pause 1" );
-                } else {
-                    # Need to recall and play playlist
-                    IOWrite( $hash, "$hash->{PLAYERMAC} playlist resume fhem_$hash->{NAME}\n" );
-                    Log3( $hash, 1, "SB_PLAYER: recall now - talkStatus=$hash->{READINGS}{talkStatus}{VAL}" );
-                }
-            }
-        } else {
-            Log3( $hash, 1, "SB_PLAYER_Set: recall without save");
-        }
-        return( undef );
+        # Recall player's saved state
+        Log3( $hash, 5, "SB_PLAYER_Set: recall " );
+        return SB_PLAYER_RecallState($hash);
 
     } elsif ( $cmd eq "statusrequest" ) {
         RemoveInternalTimer( $hash );
@@ -1219,6 +1152,127 @@ sub SB_PLAYER_Set( $@ ) {
 
 }
 
+# ----------------------------------------------------------------------------
+#  Save state of the player
+# ----------------------------------------------------------------------------
+sub SB_PLAYER_SaveState(@) {
+
+    my ($hash) = @_;
+    
+    # saves player's context
+    Log3( $hash, 5, "SB_PLAYER_SaveState" ); 
+    readingsSingleUpdate( $hash, 
+              "savedState", 
+              $hash->{READINGS}{state}{VAL}, 
+              1 );
+    readingsSingleUpdate( $hash, 
+              "savedPlayStatus", 
+              $hash->{READINGS}{playStatus}{VAL}, 
+              1 );
+    IOWrite( $hash, "$hash->{PLAYERMAC} playlist save fhem_$hash->{NAME}\n" );
+
+    return( undef );
+
+}
+
+# ----------------------------------------------------------------------------
+#  Recall saved state of the player (make sure you do a "save" first)
+# ----------------------------------------------------------------------------
+sub SB_PLAYER_RecallState(@) {
+
+    my ($hash) = @_;
+
+    if( defined( $hash->{READINGS}{savedState}{VAL} ) ) {
+        # something has been saved
+        Log3( $hash, 5, "SB_PLAYER_RecallState: recall( $hash->{READINGS}{savedState}{VAL}, $hash->{READINGS}{savedPlayStatus}{VAL})" );
+        if( $hash->{READINGS}{talkStatus}{VAL} ne "stopped" ) {
+            # I am talking : need to wait for the end i.e. for a stop
+            if( !($hash->{READINGS}{talkStatus}{VAL} =~/pending/ )) {
+                readingsSingleUpdate( $hash, "talkStatus", $hash->{READINGS}{talkStatus}{VAL}." recall pending", 1 );
+            }
+            Log3( $hash, 4, "SB_PLAYER: recall : need to wait for stop - talkStatus=$hash->{READINGS}{talkStatus}{VAL}" );
+        } else {
+            # I am not talking, recall anyway
+            if( $hash->{READINGS}{savedState}{VAL} eq "off" ) {
+                # I need to call the playlist and shut off the SB
+                IOWrite( $hash, "$hash->{PLAYERMAC} playlist resume fhem_$hash->{NAME} noplay:1\n" ); 
+                IOWrite( $hash, "$hash->{PLAYERMAC} power 0\n" );
+                readingsSingleUpdate( $hash, "power", "off", 1 );
+                SB_PLAYER_Amplifier( $hash );
+                Log3( $hash, 4, "SB_PLAYER: recall : off" );
+            } elsif( $hash->{READINGS}{savedPlayStatus}{VAL} eq "stopped" ) {
+                # Need to recall playlist + stop
+                IOWrite( $hash, "$hash->{PLAYERMAC} playlist resume fhem_$hash->{NAME} noplay:1\n" );
+                IOWrite( $hash, "$hash->{PLAYERMAC} stop\n" );
+                Log3( $hash, 4, "SB_PLAYER: recall : stop" );
+            } elsif( $hash->{READINGS}{savedPlayStatus}{VAL} eq "paused" ) {
+                # Need to recall playlist + pause
+                IOWrite( $hash, "$hash->{PLAYERMAC} playlist resume fhem_$hash->{NAME} noplay:1\n" );
+                IOWrite( $hash, "$hash->{PLAYERMAC} pause 1\n" );
+                Log3( $hash, 4, "SB_PLAYER: recall : pause 1" );
+            } else {
+                # Need to recall and play playlist
+                IOWrite( $hash, "$hash->{PLAYERMAC} playlist resume fhem_$hash->{NAME}\n" );
+                Log3( $hash, 4, "SB_PLAYER: recall now - talkStatus=$hash->{READINGS}{talkStatus}{VAL}" );
+            }
+        }
+    } else {
+        Log3( $hash, 3, "SB_PLAYER_RecallState: recall without save");
+    }
+    return( undef );
+
+}
+
+# ----------------------------------------------------------------------------
+#  Recall saved state of the player (make sure you do a "save" first)
+# ----------------------------------------------------------------------------
+sub SB_PLAYER_Talk(@) {
+
+    # Parameters (recall=0,1 if save/recall should be done)
+    my ($hash, $recall, @arg) = @_;
+    
+    Log3( $hash, 5, "SB_PLAYER_Talk. Recall: $recall; arg: @arg");
+    
+    # Save player state if requested
+    if ($recall == 1) {
+        Log3 ( $hash, 5, "SB_PLAYER_Talk: Saving state");
+        SB_PLAYER_SaveState($hash);
+    }
+
+    # Generate tts URL from attributes and text in @arg
+    my $outstr = join( "+", @arg );
+    $outstr = uri_escape( $outstr );
+    $outstr = AttrVal( $name, "ttslink", "none" )  
+        . "&tl=" . AttrVal( $name, "ttslanguage", "de" )
+        . "&q=". $outstr; 
+
+    Log3( $hash, 4, "SB_PLAYER_Talk: talk: $name: $outstr" );
+
+    # Setup squeezebox for talking
+    if( $hash->{READINGS}{talkStatus}{VAL} eq "stopped") {
+        # new talk, no talk already playing
+        IOWrite( $hash, "$hash->{PLAYERMAC} playlist clear\n" );
+        IOWrite( $hash, "$hash->{PLAYERMAC} playlist add ". $outstr . "\n" );
+        IOWrite( $hash, "$hash->{PLAYERMAC} play\n" );
+        Log3( $hash, 4, "SB_PLAYER: talk: initialize playlist" );
+    } else {
+        # already playing
+        IOWrite( $hash, "$hash->{PLAYERMAC} playlist add ". $outstr . "\n" );
+        Log3( $hash, 4, "SB_PLAYER: talkStatus = $hash->{READINGS}{talkStatus}{VAL}" );
+        Log3( $hash, 4, "SB_PLAYER: talk: add $outstr" );
+    }
+    # Record talk status
+    readingsSingleUpdate( $hash, "talkStatus", "requested", 1 );
+    
+    # Request recall of player state if requested
+    if ($recall == 1) {
+        Log3 ( $hash, 5, "SB_PLAYER_Talk: Recalling state");
+        SB_PLAYER_RecallState(@);
+    }
+    
+    return( undef );
+
+}
 
 # ----------------------------------------------------------------------------
 #  set Alarms of the Player
