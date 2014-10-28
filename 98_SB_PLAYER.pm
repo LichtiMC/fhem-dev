@@ -856,391 +856,364 @@ sub SB_PLAYER_Set( $@ ) {
 
     # check if we have received a command
     if( !defined( $cmd ) ) { 
-	my $msg = "$name: set needs at least one parameter";
-	Log3( $hash, 3, $msg );
-	return( $msg );
+        my $msg = "$name: set needs at least one parameter";
+        Log3( $hash, 3, $msg );
+        return( $msg );
     }
 
     # now parse the commands
     if( $cmd eq "?" ) {
-	# this one should give us a drop down list
-	my $res = "Unknown argument ?, choose one of " . 
-	    "on off stop:noArg play:noArg pause:noArg " . 
-	    "save recall " . 
-	    "volume:slider,0,1,100 " . 
-	    "volumeUp:noArg volumeDown:noArg " . 
-	    "mute:noArg repeat:off,one,all show statusRequest:noArg " . 
-	    "shuffle:on,off next:noArg prev:noArg playlist sleep " . 
-	    "alarm1 alarm2 allalarms:enable,disable cliraw talk " . 
-	    "unsync:noArg ";
-	# add the favorites
-	$res .= $hash->{FAVSET} . ":" . $hash->{FAVSTR} . " ";
-	# ad the syncmasters
-	$res .= "sync:" . $hash->{SYNCMASTERS} . " ";
-	$res .= "playlists:" . $hash->{SERVERPLAYLISTS} . " ";
-	return( $res );
+        # this one should give us a drop down list
+        my $res = "Unknown argument ?, choose one of " . 
+                  "on off stop:noArg play:noArg pause:noArg " . 
+                  "save recall " . 
+                  "volume:slider,0,1,100 " . 
+                  "volumeUp:noArg volumeDown:noArg " . 
+                  "mute:noArg repeat:off,one,all show statusRequest:noArg " . 
+                  "shuffle:on,off next:noArg prev:noArg playlist sleep " . 
+                  "alarm1 alarm2 allalarms:enable,disable cliraw talk " . 
+                  "unsync:noArg ";
+        # add the favorites
+        $res .= $hash->{FAVSET} . ":" . $hash->{FAVSTR} . " ";
+        # ad the syncmasters
+        $res .= "sync:" . $hash->{SYNCMASTERS} . " ";
+        $res .= "playlists:" . $hash->{SERVERPLAYLISTS} . " ";
+        return( $res );
     }
 
     # as we have some other command, we need to turn on the server
     #if( AttrVal( $name, "serverautoon", "true" ) eq "true" ) {
-#	SB_PLAYER_ServerTurnOn( $hash );
-#    }
+    #	SB_PLAYER_ServerTurnOn( $hash );
+    #    }
 
+    if ( lc($cmd) eq "stop" ) {
+        IOWrite( $hash, "$hash->{PLAYERMAC} stop\n" );
 
-    if( ( $cmd eq "Stop" ) || ( $cmd eq "STOP" ) || ( $cmd eq "stop" ) ) {
-	IOWrite( $hash, "$hash->{PLAYERMAC} stop\n" );
+    } elsif ( lc($cmd) eq "play" ) {
+        my $secbuf = AttrVal( $name, "fadeinsecs", 10 );
+        IOWrite( $hash, "$hash->{PLAYERMAC} play $secbuf\n" );
 
-    } elsif( ( $cmd eq "Play" ) || ( $cmd eq "PLAY" ) || ( $cmd eq "play" ) ) {
-	my $secbuf = AttrVal( $name, "fadeinsecs", 10 );
-	IOWrite( $hash, "$hash->{PLAYERMAC} play $secbuf\n" );
+    } elsif ( lc($cmd) eq "pause" ) {
+        my $secbuf = AttrVal( $name, "fadeinsecs", 10 );
+        if( @arg > 0 ) {
+            if( $arg[ 0 ] eq "1" ) {
+                # pause the player
+                IOWrite( $hash, "$hash->{PLAYERMAC} pause 1 $secbuf\n" );
+            } else {
+                # unpause the player
+                IOWrite( $hash, "$hash->{PLAYERMAC} pause 0 $secbuf\n" );
+            }
+        } else {
+            IOWrite( $hash, "$hash->{PLAYERMAC} pause $secbuf\n" );
+        }
 
-    } elsif( ( $cmd eq "Pause" ) || ( $cmd eq "PAUSE" ) || ( $cmd eq "pause" ) ) {
-	my $secbuf = AttrVal( $name, "fadeinsecs", 10 );
-	if( @arg == 1 ) {
-	    if( $arg[ 0 ] eq "1" ) {
-		# pause the player
-		IOWrite( $hash, "$hash->{PLAYERMAC} pause 1 $secbuf\n" );
-	    } else {
-		# unpause the player
-		IOWrite( $hash, "$hash->{PLAYERMAC} pause 0 $secbuf\n" );
-	    }
-	} else {
-	    IOWrite( $hash, "$hash->{PLAYERMAC} pause $secbuf\n" );
-	}
+    } elsif (( lc($cmd) eq "next" ) || ( lc($cmd) eq "channelup" )) {
+        IOWrite( $hash, "$hash->{PLAYERMAC} playlist jump %2B1\n" );
 
-    } elsif( ( $cmd eq "next" ) || ( $cmd eq "NEXT" ) || ( $cmd eq "Next" ) || 
-	     ( $cmd eq "channelUp" ) || ( $cmd eq "CHANNELUP" ) ) {
-	IOWrite( $hash, "$hash->{PLAYERMAC} playlist jump %2B1\n" );
+    } elsif (( lc($cmd) eq "prev" ) || ( lc($cmd) eq "channeldown" )) {
+        IOWrite( $hash, "$hash->{PLAYERMAC} playlist jump %2D1\n" );
 
-    } elsif( ( $cmd eq "prev" ) || ( $cmd eq "PREV" ) || ( $cmd eq "Prev" ) || 
-	     ( $cmd eq "channelDown" ) || ( $cmd eq "CHANNELDOWN" ) ) {
-	IOWrite( $hash, "$hash->{PLAYERMAC} playlist jump %2D1\n" );
-
-    } elsif( ( $cmd eq "volume" ) || ( $cmd eq "VOLUME" ) || 
-	     ( $cmd eq "Volume" ) ||( $cmd eq "volumeStraight" ) ) {
-	if( @arg != 1 ) {
-	    my $msg = "SB_PLAYER_Set: no arguments for Vol given.";
-	    Log3( $hash, 3, $msg );
-	    return( $msg );
-	}
-	# set the volume to the desired level. Needs to be 0..100
-	# no error checking here, as the server does this
-	if( $arg[ 0 ] <= AttrVal( $name, "volumeLimit", 100 ) ) {
-	    IOWrite( $hash, "$hash->{PLAYERMAC} mixer volume $arg[ 0 ]\n" );
-	} else {
-	    IOWrite( $hash, "$hash->{PLAYERMAC} mixer volume " . 
-		     AttrVal( $name, "volumeLimit", 50 ) . "\n" );
-	}
+    } elsif (( lc($cmd) eq "volume" ) || ( lc($cmd) eq "volumestraight" )) {
+        if( @arg < 1 ) {
+            my $msg = "SB_PLAYER_Set: no arguments for Vol given.";
+            Log3( $hash, 3, $msg );
+            return( $msg );
+        }
+        # set the volume to the desired level. Needs to be 0..100
+        # no error checking here, as the server does this
+        if( $arg[ 0 ] <= AttrVal( $name, "volumeLimit", 100 ) ) {
+            IOWrite( $hash, "$hash->{PLAYERMAC} mixer volume $arg[ 0 ]\n" );
+        } else {
+            IOWrite( $hash, "$hash->{PLAYERMAC} mixer volume " . 
+               AttrVal( $name, "volumeLimit", 50 ) . "\n" );
+        }
 
     } elsif( $cmd eq $hash->{FAVSET} ) {
-	if( defined( $SB_PLAYER_Favs{$name}{$arg[0]}{ID} ) ) {
-	    my $fid = $SB_PLAYER_Favs{$name}{$arg[0]}{ID};
-	    IOWrite( $hash, "$hash->{PLAYERMAC} favorites playlist " . 
-		     "play item_id:$fid\n" );
-	    $hash->{FAVSELECT} = $arg[ 0 ];
-	    readingsSingleUpdate( $hash, "$hash->{FAVSET}", "$arg[ 0 ]", 1 );
-	    SB_PLAYER_GetStatus( $hash );
-	}
+        if( defined( $SB_PLAYER_Favs{$name}{$arg[0]}{ID} ) ) {
+            my $fid = $SB_PLAYER_Favs{$name}{$arg[0]}{ID};
+            IOWrite( $hash, "$hash->{PLAYERMAC} favorites playlist " . 
+               "play item_id:$fid\n" );
+            $hash->{FAVSELECT} = $arg[ 0 ];
+            readingsSingleUpdate( $hash, "$hash->{FAVSET}", "$arg[ 0 ]", 1 );
+            SB_PLAYER_GetStatus( $hash );
+        }
 
+    } elsif ( lc($cmd) eq "volumeup" ) {
+        # increase volume
+        if( ( ReadingsVal( $name, "volumeStraight", 50 ) + 
+            AttrVal( $name, "volumeStep", 10 ) ) <= 
+            AttrVal( $name, "volumeLimit", 100 ) ) {
+            my $volstr = sprintf( "+%02d", AttrVal( $name, "volumeStep", 10 ) );
+            IOWrite( $hash, "$hash->{PLAYERMAC} mixer volume $volstr\n" );
+        } else {
+            IOWrite( $hash, "$hash->{PLAYERMAC} mixer volume " . 
+               AttrVal( $name, "volumeLimit", 50 ) . "\n" );
+        }
 
-    } elsif( ( $cmd eq "volumeUp" ) || ( $cmd eq "VOLUMEUP" ) || 
-	     ( $cmd eq "VolumeUp" ) ) {
-	# increase volume
-	if( ( ReadingsVal( $name, "volumeStraight", 50 ) + 
-	      AttrVal( $name, "volumeStep", 10 ) ) <= 
-	    AttrVal( $name, "volumeLimit", 100 ) ) {
-	    my $volstr = sprintf( "+%02d", AttrVal( $name, "volumeStep", 10 ) );
-	    IOWrite( $hash, "$hash->{PLAYERMAC} mixer volume $volstr\n" );
-	} else {
-	    IOWrite( $hash, "$hash->{PLAYERMAC} mixer volume " . 
-		     AttrVal( $name, "volumeLimit", 50 ) . "\n" );
-	}
+    } elsif ( lc($cmd) eq "volumedown" ) {
+        my $volstr = sprintf( "-%02d", AttrVal( $name, "volumeStep", 10 ) );
+        IOWrite( $hash, "$hash->{PLAYERMAC} mixer volume $volstr\n" );
 
-    } elsif( ( $cmd eq "volumeDown" ) || ( $cmd eq "VOLUMEDOWN" ) || 
-	     ( $cmd eq "VolumeDown" ) ) {
-	my $volstr = sprintf( "-%02d", AttrVal( $name, "volumeStep", 10 ) );
-	IOWrite( $hash, "$hash->{PLAYERMAC} mixer volume $volstr\n" );
-
-    } elsif( ( $cmd eq "mute" ) || ( $cmd eq "MUTE" ) || ( $cmd eq "Mute" ) ) {
-	IOWrite( $hash, "$hash->{PLAYERMAC} mixer muting toggle\n" );
+    } elsif ( lc($cmd) eq "mute" ) {
+        IOWrite( $hash, "$hash->{PLAYERMAC} mixer muting toggle\n" );
 
     } elsif( $cmd eq "on" ) {
-	if( $hash->{CANPOWEROFF} eq "0" ) {
-	    IOWrite( $hash, "$hash->{PLAYERMAC} play\n" );
-	} else {
-	    IOWrite( $hash, "$hash->{PLAYERMAC} power 1\n" );
-	}
+        if( $hash->{CANPOWEROFF} eq "0" ) {
+            IOWrite( $hash, "$hash->{PLAYERMAC} play\n" );
+        } else {
+            IOWrite( $hash, "$hash->{PLAYERMAC} power 1\n" );
+        }
 
     } elsif( $cmd eq "off" ) {
-	# off command to go here
-	if( $hash->{CANPOWEROFF} eq "0" ) {
-	    IOWrite( $hash, "$hash->{PLAYERMAC} stop\n" );
-	} else {
-	    IOWrite( $hash, "$hash->{PLAYERMAC} power 0\n" );
-	}
+        # off command to go here
+        if( $hash->{CANPOWEROFF} eq "0" ) {
+            IOWrite( $hash, "$hash->{PLAYERMAC} stop\n" );
+        } else {
+            IOWrite( $hash, "$hash->{PLAYERMAC} power 0\n" );
+        }
 
-    } elsif( ( $cmd eq "repeat" ) || ( $cmd eq "REPEAT" ) || 
-	     ( $cmd eq "Repeat" ) ) {
-	if( @arg != 1 ) {
-	    my $msg = "SB_PLAYER_Set: no arguments for repeat given.";
-	    Log3( $hash, 3, $msg );
-	    return( $msg );
-	}
-	if( $arg[ 0 ] eq "off" ) {
-	    IOWrite( $hash, "$hash->{PLAYERMAC} playlist repeat 0\n" );
-	} elsif( $arg[ 0 ] eq "one" ) {
-	    IOWrite( $hash, "$hash->{PLAYERMAC} playlist repeat 1\n" );
-	} elsif( $arg[ 0 ] eq "all" ) {
-	    IOWrite( $hash, "$hash->{PLAYERMAC} playlist repeat 2\n" );
-	} else {
-	    my $msg = "SB_PLAYER_Set: unknown argument for repeat given.";
-	    Log3( $hash, 3, $msg );
-	    return( $msg );
-	}      
+    } elsif ( lc($cmd) eq "repeat" ) {
+        if( @arg < 1 ) {
+            my $msg = "SB_PLAYER_Set: no arguments for repeat given.";
+            Log3( $hash, 3, $msg );
+            return( $msg );
+        }
+        if( $arg[ 0 ] eq "off" ) {
+            IOWrite( $hash, "$hash->{PLAYERMAC} playlist repeat 0\n" );
+        } elsif( $arg[ 0 ] eq "one" ) {
+            IOWrite( $hash, "$hash->{PLAYERMAC} playlist repeat 1\n" );
+        } elsif( $arg[ 0 ] eq "all" ) {
+            IOWrite( $hash, "$hash->{PLAYERMAC} playlist repeat 2\n" );
+        } else {
+            my $msg = "SB_PLAYER_Set: unknown argument for repeat given.";
+            Log3( $hash, 3, $msg );
+            return( $msg );
+        }      
 	
-    } elsif( ( $cmd eq "shuffle" ) || ( $cmd eq "SHUFFLE" ) || 
-	     ( $cmd eq "Shuffle" ) ) {
-	if( @arg != 1 ) {
-	    my $msg = "SB_PLAYER_Set: no arguments for shuffle given.";
-	    Log3( $hash, 3, $msg );
-	    return( $msg );
-	}
-	if( $arg[ 0 ] eq "off" ) {
-	    IOWrite( $hash, "$hash->{PLAYERMAC} playlist shuffle 0\n" );
-	} elsif( $arg[ 0 ] eq "on" ) {
-	    IOWrite( $hash, "$hash->{PLAYERMAC} playlist shuffle 1\n" );
-	} else {
-	    my $msg = "SB_PLAYER_Set: unknown argument for shuffle given.";
-	    Log3( $hash, 3, $msg );
-	    return( $msg );
-	}      
+    } elsif ( lc($cmd) eq "shuffle" ) {
+        if( @arg < 1 ) {
+            my $msg = "SB_PLAYER_Set: no arguments for shuffle given.";
+            Log3( $hash, 3, $msg );
+            return( $msg );
+        }
+        if( $arg[ 0 ] eq "off" ) {
+            IOWrite( $hash, "$hash->{PLAYERMAC} playlist shuffle 0\n" );
+        } elsif( $arg[ 0 ] eq "on" ) {
+            IOWrite( $hash, "$hash->{PLAYERMAC} playlist shuffle 1\n" );
+        } else {
+            my $msg = "SB_PLAYER_Set: unknown argument for shuffle given.";
+            Log3( $hash, 3, $msg );
+            return( $msg );
+        }      
 
-    } elsif( ( $cmd eq "show" ) || 
-	     ( $cmd eq "SHOW" ) || 
-	     ( $cmd eq "Show" ) ) {
-	# set <name> show line1:text line2:text duration:ss
-	my $v = join( " ", @arg );
-	my @buf = split( "line1:", $v );
-	@buf = split( "line2:", $buf[ 1 ] );
-	my $line1 = uri_escape( $buf[ 0 ] );
-	@buf = split( "duration:", $buf[ 1 ] );
-	my $line2 = uri_escape( $buf[ 0 ] );
-	my $duration = $buf[ 1 ];
-	my $cmdstr = "$hash->{PLAYERMAC} display $line1 $line2 $duration\n";
-	IOWrite( $hash, $cmdstr );
+    } elsif ( lc($cmd) eq "show" )
+        # set <name> show line1:text line2:text duration:ss
+        my $v = join( " ", @arg );
+        my @buf = split( "line1:", $v );
+        @buf = split( "line2:", $buf[ 1 ] );
+        my $line1 = uri_escape( $buf[ 0 ] );
+        @buf = split( "duration:", $buf[ 1 ] );
+        my $line2 = uri_escape( $buf[ 0 ] );
+        my $duration = $buf[ 1 ];
+        my $cmdstr = "$hash->{PLAYERMAC} display $line1 $line2 $duration\n";
+        IOWrite( $hash, $cmdstr );
 
-    } elsif( ( $cmd eq "talk" ) || 
-	     ( $cmd eq "TALK" ) || 
-	     ( $cmd eq "talk" ) ) {
-	my $outstr = join( "+", @arg );
-	$outstr = uri_escape( $outstr );
-	$outstr = AttrVal( $name, "ttslink", "none" )  
-	    . "&tl=" . AttrVal( $name, "ttslanguage", "de" )
-	    . "&q=". $outstr; 
+    } elsif ( lc($cmd) eq "talk" ) {
+        my $outstr = join( "+", @arg );
+        $outstr = uri_escape( $outstr );
+        $outstr = AttrVal( $name, "ttslink", "none" )  
+            . "&tl=" . AttrVal( $name, "ttslanguage", "de" )
+            . "&q=". $outstr; 
 
-	Log3( $hash, 1, "SB_PLAYER_Set: talk: $name: $outstr" );
-	#readingsSingleUpdate( $hash, "talkStatus", "requested", 1 );
+        Log3( $hash, 1, "SB_PLAYER_Set: talk: $name: $outstr" );
+        #readingsSingleUpdate( $hash, "talkStatus", "requested", 1 );
 
-	# example for making it speak some google text-to-speech
-	#IOWrite( $hash, "$hash->{PLAYERMAC} playlist play " . $outstr . "\n" );
+        # example for making it speak some google text-to-speech
+        #IOWrite( $hash, "$hash->{PLAYERMAC} playlist play " . $outstr . "\n" );
 
-	if( $hash->{READINGS}{talkStatus}{VAL} eq "stopped") {
-	    # new talk, no talk already playing
-	    IOWrite( $hash, "$hash->{PLAYERMAC} playlist clear\n" );
-	    IOWrite( $hash, "$hash->{PLAYERMAC} playlist add ". $outstr . "\n" );
-	    IOWrite( $hash, "$hash->{PLAYERMAC} play\n" );
-	    Log3( $hash, 1, "SB_PLAYER: talk: initialize playlist" );
-	} else {
-	    # already playing
-	    IOWrite( $hash, "$hash->{PLAYERMAC} playlist add ". $outstr . "\n" );
-	    Log3( $hash, 1, "SB_PLAYER: talkStatus = $hash->{READINGS}{talkStatus}{VAL}" );
-	    Log3( $hash, 1, "SB_PLAYER: talk: add $outstr" );
-	}
-	readingsSingleUpdate( $hash, "talkStatus", "requested", 1 );
+        if( $hash->{READINGS}{talkStatus}{VAL} eq "stopped") {
+            # new talk, no talk already playing
+            IOWrite( $hash, "$hash->{PLAYERMAC} playlist clear\n" );
+            IOWrite( $hash, "$hash->{PLAYERMAC} playlist add ". $outstr . "\n" );
+            IOWrite( $hash, "$hash->{PLAYERMAC} play\n" );
+            Log3( $hash, 1, "SB_PLAYER: talk: initialize playlist" );
+        } else {
+            # already playing
+            IOWrite( $hash, "$hash->{PLAYERMAC} playlist add ". $outstr . "\n" );
+            Log3( $hash, 1, "SB_PLAYER: talkStatus = $hash->{READINGS}{talkStatus}{VAL}" );
+            Log3( $hash, 1, "SB_PLAYER: talk: add $outstr" );
+        }
+        readingsSingleUpdate( $hash, "talkStatus", "requested", 1 );
 
-    } elsif( ( $cmd eq "playlist" ) || 
-	     ( $cmd eq "PLAYLIST" ) || 
-	     ( $cmd eq "Playlist" ) ) {
-	if( ( @arg != 2 ) && ( @arg != 3 ) ) {
-	    my $msg = "SB_PLAYER_Set: no arguments for Playlist given.";
-	    Log3( $hash, 3, $msg );
-	    return( $msg );
-	}
-	if( @arg == 1 ) {
-	    if( $arg[ 0 ] eq "track" ) {
-		IOWrite( $hash, "$hash->{PLAYERMAC} playlist loadtracks " . 
-			 "track.titlesearch:$arg[ 1 ]\n" );
-	    } elsif( $arg[ 0 ] eq "album" ) {
-		IOWrite( $hash, "$hash->{PLAYERMAC} playlist loadtracks " . 
-			 "album.titlesearch:$arg[ 1 ]\n" );
-	    } elsif( $arg[ 0 ] eq "artist" ) {
-		IOWrite( $hash, "$hash->{PLAYERMAC} playlist loadtracks " . 
-			 "contributor.titlesearch:$arg[ 1 ]\n" );
-	    } else {
-	    }
+    } elsif ( lc($cmd) eq "playlist" ) {
+        if ( @arg < 2 ) {
+            my $msg = "SB_PLAYER_Set: not enough arguments for Playlist given.";
+            Log3( $hash, 3, $msg );
+            return( $msg );
+        }
+        if( @arg < 3 ) {
+            if( $arg[ 0 ] eq "track" ) {
+                IOWrite( $hash, "$hash->{PLAYERMAC} playlist loadtracks " . 
+                   "track.titlesearch:$arg[ 1 ]\n" );
+            } elsif( $arg[ 0 ] eq "album" ) {
+                IOWrite( $hash, "$hash->{PLAYERMAC} playlist loadtracks " . 
+                   "album.titlesearch:$arg[ 1 ]\n" );
+            } elsif( $arg[ 0 ] eq "artist" ) {
+                IOWrite( $hash, "$hash->{PLAYERMAC} playlist loadtracks " . 
+                   "contributor.titlesearch:$arg[ 1 ]\n" );
+            }
 
-	} elsif( @arg == 3 ) {
-	    Log3( $hash, 5, "SB_PLAYER_Set($name): implement identifiers with " .
-		  "spaces etc. inside" );
-	    # the spaces might need %20 so we might need some more here
-	    # please introduce a format like genre:xxx album:xxx artist:xxx
-	    # and then run the results through uri_escape
-	    IOWrite( $hash, "$hash->{PLAYERMAC} playlist loadalbum $arg[ 0 ] " . 
-		     "$arg[ 1 ] $arg[ 2 ]\n" );
-	} else {
-	    # what the f... we checked beforehand
-	}
+        } elsif( @arg > 2 ) {
+            Log3( $hash, 5, "SB_PLAYER_Set($name): implement identifiers with " .
+            "spaces etc. inside" );
+            # the spaces might need %20 so we might need some more here
+            # please introduce a format like genre:xxx album:xxx artist:xxx
+            # and then run the results through uri_escape
+            IOWrite( $hash, "$hash->{PLAYERMAC} playlist loadalbum $arg[ 0 ] " . 
+               "$arg[ 1 ] $arg[ 2 ]\n" );
+        }
 
-    } elsif( $cmd eq "allalarms" ) {
-	if( $arg[ 0 ] eq "enable" ) {
-	    IOWrite( $hash, "$hash->{PLAYERMAC} alarm enableall\n" );
-	} elsif( $arg[ 0 ] eq "disable" ) {
-	    IOWrite( $hash, "$hash->{PLAYERMAC} alarm disableall\n" );
-	} else {
-	}
-
+    } elsif( lc($cmd) eq "allalarms" ) {
+        if( $arg[ 0 ] eq "enable" ) {
+            IOWrite( $hash, "$hash->{PLAYERMAC} alarm enableall\n" );
+        } elsif( $arg[ 0 ] eq "disable" ) {
+            IOWrite( $hash, "$hash->{PLAYERMAC} alarm disableall\n" );
+        }
 
     } elsif( index( $cmd, "alarm" ) != -1 ) {
-	my $alarmno = int( substr( $cmd, 5 ) ) + 0;
-	Log3( $hash, 5, "SB_PLAYER_Set: $name: alarmid:$alarmno" );
-	return( SB_PLAYER_Alarm( $hash, $alarmno, @arg ) );
+        my $alarmno = int( substr( $cmd, 5 ) ) + 0;
+        Log3( $hash, 5, "SB_PLAYER_Set: $name: alarmid:$alarmno" );
+        return( SB_PLAYER_Alarm( $hash, $alarmno, @arg ) );
 
-    } elsif( ( $cmd eq "sleep" ) || ( $cmd eq "SLEEP" ) ||
-	     ( $cmd eq "Sleep" ) ) {
-	# split the time string up
-	my @buf = split( ":", $arg[ 0 ] );
-	if( scalar( @buf ) != 3 ) {
-	    my $msg = "SB_PLAYER_Set: please use hh:mm:ss for sleep time.";
-	    Log3( $hash, 3, $msg );
-	    return( $msg );
-	}	      
-	my $secs = ( $buf[ 0 ] * 3600 ) + ( $buf[ 1 ] * 60 ) + $buf[ 2 ];
-	IOWrite( $hash, "$hash->{PLAYERMAC} sleep $secs\n" );
-	return( undef );
+    } elsif ( lc($cmd) eq "sleep" ) {
+        # split the time string up
+        my @buf = split( ":", $arg[ 0 ] );
+        if( scalar( @buf ) != 3 ) {
+            my $msg = "SB_PLAYER_Set: please use hh:mm:ss for sleep time.";
+            Log3( $hash, 3, $msg );
+            return( $msg );
+        }	      
+        my $secs = ( $buf[ 0 ] * 3600 ) + ( $buf[ 1 ] * 60 ) + $buf[ 2 ];
+        IOWrite( $hash, "$hash->{PLAYERMAC} sleep $secs\n" );
+        return( undef );
 
-    } elsif( ( $cmd eq "cliraw" ) || ( $cmd eq "CLIRAW" ) ||
-	     ( $cmd eq "Cliraw" ) ) {
-	# write raw messages to the CLI interface per player
-	my $v = join( " ", @arg );
+    } elsif ( lc($cmd) eq "cliraw" ) {
+        # write raw messages to the CLI interface per player
+        my $v = join( " ", @arg );
 
-	Log3( $hash, 5, "SB_PLAYER_Set: cliraw: $v " ); 
-	IOWrite( $hash, "$hash->{PLAYERMAC} $v\n" );
-	return( undef );
+        Log3( $hash, 5, "SB_PLAYER_Set: cliraw: $v " ); 
+        IOWrite( $hash, "$hash->{PLAYERMAC} $v\n" );
+        return( undef );
 
-    } elsif( ( $cmd eq "save" ) || ( $cmd eq "SAVE" ) ) {
-	# saves player's context
+    } elsif ( lc($cmd) eq "save" ) {
+        # saves player's context
+        Log3( $hash, 5, "SB_PLAYER_Set: save " ); 
+        readingsSingleUpdate( $hash, 
+                  "savedState", 
+                  $hash->{READINGS}{state}{VAL}, 
+                  1 );
+        readingsSingleUpdate( $hash, 
+                  "savedPlayStatus", 
+                  $hash->{READINGS}{playStatus}{VAL}, 
+                  1 );
+        IOWrite( $hash, "$hash->{PLAYERMAC} playlist save fhem_$hash->{NAME}\n" );
+        #	if( $hash->{READINGS}{savedState}{VAL} eq "pause" ) {
+        #	    #  last commands changed the status to stopped ???
+        #	    IOWrite( $hash, "$hash->{PLAYERMAC} pause 1\n" );
+        #	}
+        return( undef );
 
-	Log3( $hash, 5, "SB_PLAYER_Set: save " ); 
-	readingsSingleUpdate( $hash, 
-			      "savedState", 
-			      $hash->{READINGS}{state}{VAL}, 
-			      1 );
-	readingsSingleUpdate( $hash, 
-			      "savedPlayStatus", 
-			      $hash->{READINGS}{playStatus}{VAL}, 
-			      1 );
-	IOWrite( $hash, "$hash->{PLAYERMAC} playlist save fhem_$hash->{NAME}\n" );
-#	if( $hash->{READINGS}{savedState}{VAL} eq "pause" ) {
-#	    #  last commands changed the status to stopped ???
-#	    IOWrite( $hash, "$hash->{PLAYERMAC} pause 1\n" );
-#	}
-	return( undef );
+    } elsif ( lc($cmd) eq "recall" ) {
+        if( defined( $hash->{READINGS}{savedState}{VAL} ) ) {
+            # something has been saved
+            Log3( $hash, 1, "SB_PLAYER_Set: recall( $hash->{READINGS}{savedState}{VAL}, $hash->{READINGS}{savedPlayStatus}{VAL})" );
+            if( $hash->{READINGS}{talkStatus}{VAL} ne "stopped" ) {
+                # I am talking : need to wait for the end i.e. for a stop
+                if( !($hash->{READINGS}{talkStatus}{VAL} =~/pending/ )) {
+                    readingsSingleUpdate( $hash, "talkStatus", $hash->{READINGS}{talkStatus}{VAL}." recall pending", 1 );
+                }
+                Log3( $hash, 1, "SB_PLAYER: recall : need to wait for stop - talkStatus=$hash->{READINGS}{talkStatus}{VAL}" );
+            } else {
+                # I am not talking, recall anyway
+                if( $hash->{READINGS}{savedState}{VAL} eq "off" ) {
+                    # I need to call the playlist and shut off the SB
+                    IOWrite( $hash, "$hash->{PLAYERMAC} playlist resume fhem_$hash->{NAME} noplay:1\n" ); 
+                    IOWrite( $hash, "$hash->{PLAYERMAC} power 0\n" );
+                    readingsSingleUpdate( $hash, "power", "off", 1 );
+                    SB_PLAYER_Amplifier( $hash );
+                    Log3( $hash, 1, "SB_PLAYER: recall : off" );
+                } elsif( $hash->{READINGS}{savedPlayStatus}{VAL} eq "stopped" ) {
+                    # Need to recall playlist + stop
+                    IOWrite( $hash, "$hash->{PLAYERMAC} playlist resume fhem_$hash->{NAME} noplay:1\n" );
+                    IOWrite( $hash, "$hash->{PLAYERMAC} stop\n" );
+                    Log3( $hash, 1, "SB_PLAYER: recall : stop" );
+                } elsif( $hash->{READINGS}{savedPlayStatus}{VAL} eq "paused" ) {
+                    # Need to recall playlist + pause
+                    IOWrite( $hash, "$hash->{PLAYERMAC} playlist resume fhem_$hash->{NAME} noplay:1\n" );
+                    IOWrite( $hash, "$hash->{PLAYERMAC} pause 1\n" );
+                    Log3( $hash, 1, "SB_PLAYER: recall : pause 1" );
+                } else {
+                    # Need to recall and play playlist
+                    IOWrite( $hash, "$hash->{PLAYERMAC} playlist resume fhem_$hash->{NAME}\n" );
+                    Log3( $hash, 1, "SB_PLAYER: recall now - talkStatus=$hash->{READINGS}{talkStatus}{VAL}" );
+                }
+            }
+        } else {
+            Log3( $hash, 1, "SB_PLAYER_Set: recall without save");
+        }
+        return( undef );
 
-    } elsif( ( $cmd eq "recall" ) || ( $cmd eq "RECALL" ) ) {
+    } elsif ( lc($cmd) eq "statusrequest" ) {
+        RemoveInternalTimer( $hash );
+        SB_PLAYER_GetStatus( $hash );
 
-	if( defined( $hash->{READINGS}{savedState}{VAL} ) ) {
-	    # something has been saved
-	    Log3( $hash, 1, "SB_PLAYER_Set: recall( $hash->{READINGS}{savedState}{VAL}, $hash->{READINGS}{savedPlayStatus}{VAL})" );
-	    if( $hash->{READINGS}{talkStatus}{VAL} ne "stopped" ) {
-		# I am talking : need to wait for the end i.e. for a stop
-		if( !($hash->{READINGS}{talkStatus}{VAL} =~/pending/ )) {
-		    readingsSingleUpdate( $hash, "talkStatus", $hash->{READINGS}{talkStatus}{VAL}." recall pending", 1 );
-		}
-		Log3( $hash, 1, "SB_PLAYER: recall : need to wait for stop - talkStatus=$hash->{READINGS}{talkStatus}{VAL}" );
-	    } else {
-		# I am not talking, recall anyway
-		if( $hash->{READINGS}{savedState}{VAL} eq "off" ) {
-		    # I need to call the playlist and shut off the SB
-		    IOWrite( $hash, "$hash->{PLAYERMAC} playlist resume fhem_$hash->{NAME} noplay:1\n" ); 
-		    IOWrite( $hash, "$hash->{PLAYERMAC} power 0\n" );
-		    readingsSingleUpdate( $hash, "power", "off", 1 );
-		    SB_PLAYER_Amplifier( $hash );
-		    Log3( $hash, 1, "SB_PLAYER: recall : off" );
-		} elsif( $hash->{READINGS}{savedPlayStatus}{VAL} eq "stopped" ) {
-		    # Need to recall playlist + stop
-		    IOWrite( $hash, "$hash->{PLAYERMAC} playlist resume fhem_$hash->{NAME} noplay:1\n" );
-		    IOWrite( $hash, "$hash->{PLAYERMAC} stop\n" );
-		    Log3( $hash, 1, "SB_PLAYER: recall : stop" );
-		} elsif( $hash->{READINGS}{savedPlayStatus}{VAL} eq "paused" ) {
-		    # Need to recall playlist + pause
-		    IOWrite( $hash, "$hash->{PLAYERMAC} playlist resume fhem_$hash->{NAME} noplay:1\n" );
-		    IOWrite( $hash, "$hash->{PLAYERMAC} pause 1\n" );
-		    Log3( $hash, 1, "SB_PLAYER: recall : pause 1" );
-		} else {
-		    # Need to recall and play playlist
-		    IOWrite( $hash, "$hash->{PLAYERMAC} playlist resume fhem_$hash->{NAME}\n" );
-		    Log3( $hash, 1, "SB_PLAYER: recall now - talkStatus=$hash->{READINGS}{talkStatus}{VAL}" );
-		}
-	    }
-	} else {
-	    Log3( $hash, 1, "SB_PLAYER_Set: recall without save");
-	}
+    } elsif ( lc($cmd) eq "sync" ) {
+        if( @arg > 0 ) {
+            if( defined( $SB_PLAYER_SyncMasters{$name}{$arg[0]}{MAC} ) ) {
+                IOWrite( $hash, "$hash->{PLAYERMAC} sync " . 
+                   "$SB_PLAYER_SyncMasters{$name}{$arg[0]}{MAC}\n" );
+                SB_PLAYER_GetStatus( $hash );
+	          } else {
+                my $msg = "SB_PLAYER_Set: no arguments for sync given.";
+                Log3( $hash, 3, $msg );
+                return( $msg );
+            }
+        }
 
-	return( undef );
-
-
-    } elsif( $cmd eq "statusRequest" ) {
-	RemoveInternalTimer( $hash );
-	SB_PLAYER_GetStatus( $hash );
-
-    } elsif( $cmd eq "sync" ) {
-	if( @arg == 1 ) {
-	    if( defined( $SB_PLAYER_SyncMasters{$name}{$arg[0]}{MAC} ) ) {
-		IOWrite( $hash, "$hash->{PLAYERMAC} sync " . 
-			 "$SB_PLAYER_SyncMasters{$name}{$arg[0]}{MAC}\n" );
-		SB_PLAYER_GetStatus( $hash );
-	    } else {
-		my $msg = "SB_PLAYER_Set: no arguments for sync given.";
-		Log3( $hash, 3, $msg );
-		return( $msg );
-	    }
-	}
-
-    } elsif( $cmd eq "unsync" ) {
-	IOWrite( $hash, "$hash->{PLAYERMAC} sync -\n" );
-	SB_PLAYER_GetStatus( $hash );
+    } elsif ( lc($cmd) eq "unsync" ) {
+        IOWrite( $hash, "$hash->{PLAYERMAC} sync -\n" );
+        SB_PLAYER_GetStatus( $hash );
 	
-    } elsif( $cmd eq "playlists" ) {
-	if( @arg == 1 ) {
-	    my $msg;
-	    if( defined( $SB_PLAYER_Playlists{$name}{$arg[0]}{ID} ) ) {
-		$msg = "$hash->{PLAYERMAC} playlistcontrol cmd:load " . 
-		    "playlist_id:$SB_PLAYER_Playlists{$name}{$arg[0]}{ID}";
-		Log3( $hash, 5, "SB_PLAYER_Set($name): playlists command = " . 
-		      $msg . " ........  with $arg[0]" );
-		IOWrite( $hash, $msg . "\n" );
-		readingsSingleUpdate( $hash, "playlists", "$arg[ 0 ]", 1 );
-		SB_PLAYER_GetStatus( $hash );
-
-	    } else {
-		$msg = "SB_PLAYER_Set: no name for playlist defined.";
-		Log3( $hash, 3, $msg );
-		return( $msg );
-	    }
-	} else {
-	    my $msg = "SB_PLAYER_Set: no arguments for playlists given.";
-	    Log3( $hash, 3, $msg );
-	    return( $msg );
-	}
+    } elsif ( lc($cmd) eq "playlists" ) {
+        if( @arg > 0 ) {
+            my $msg;
+            if( defined( $SB_PLAYER_Playlists{$name}{$arg[0]}{ID} ) ) {
+                $msg = "$hash->{PLAYERMAC} playlistcontrol cmd:load " . 
+                    "playlist_id:$SB_PLAYER_Playlists{$name}{$arg[0]}{ID}";
+                Log3( $hash, 5, "SB_PLAYER_Set($name): playlists command = " . 
+                      $msg . " ........  with $arg[0]" );
+                IOWrite( $hash, $msg . "\n" );
+                readingsSingleUpdate( $hash, "playlists", "$arg[ 0 ]", 1 );
+                SB_PLAYER_GetStatus( $hash );
+            } else {
+                $msg = "SB_PLAYER_Set: no name for playlist defined.";
+                Log3( $hash, 3, $msg );
+                return( $msg );
+            }
+        } else {
+            my $msg = "SB_PLAYER_Set: no arguments for playlists given.";
+            Log3( $hash, 3, $msg );
+            return( $msg );
+        }
 
     } else {
-	my $msg = "SB_PLAYER_Set: unsupported command given";
-	Log3( $hash, 3, $msg );
-	return( $msg );
+        my $msg = "SB_PLAYER_Set: unsupported command given: $cmd";
+        Log3( $hash, 3, $msg );
+        return( $msg );
     }
-    
+
     return( undef );
-    
+
 }
 
 
