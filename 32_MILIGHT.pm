@@ -428,8 +428,11 @@ MILIGHT_Get(@)
   if($cmd eq "rgb" || $cmd eq "RGB") {
     return ReadingsVal($name, "RGB", "FFFFFF");
   }
+  elsif($cmd eq "hsv") {
+    return MILIGHT_HSVToStr($hash, ReadingsVal($hash->{NAME}, "hue", 0), ReadingsVal($hash->{NAME}, "saturation", 0), ReadingsVal($hash->{NAME}, "brightness", 0));
+  }
   
-  return "Unknown argument $cmd, choose one of rgb:noArg RGB:noArg";
+  return "Unknown argument $cmd, choose one of rgb:noArg RGB:noArg hsv:noArg";
 }
 
 sub
@@ -1186,6 +1189,10 @@ MILIGHT_HSVToStr(@)
 {
   # Convert HSV values to string in format "h,s,v"
   my ($hash, $h, $s, $v) = @_;
+  
+  $h=0 if (!defined($h));
+  $s=0 if (!defined($h));
+  $v=0 if (!defined($h));
   
   Log3 ($hash, 5, "MILIGHT_HSVToStr: h:$h,s:$s,v:$v");
   return "$h,$s,$v";
