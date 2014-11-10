@@ -1,5 +1,5 @@
 ##############################################
-# $Id: 00_ZWDongle.pm 6883 2014-11-04 21:51:16Z rudolfkoenig $
+# $Id$
 # TODO:
 # - routing commands
 # - one command to create a fhem device for all nodeList entries
@@ -161,7 +161,10 @@ ZWDongle_Initialize($)
   $hash->{DefFn}   = "ZWDongle_Define";
   $hash->{SetFn}   = "ZWDongle_Set";
   $hash->{GetFn}   = "ZWDongle_Get";
-  $hash->{AttrList}= "do_not_notify:1,0 dummy:1,0 model:ZWDongle";
+  $hash->{AttrFn}  = "ZWDongle_Attr";
+  $hash->{AttrList}= "do_not_notify:1,0 dummy:1,0 model:ZWDongle ";
+  $hash->{AttrList}.= "disable:0,1";
+
 }
 
 #####################################
@@ -205,10 +208,21 @@ ZWDongle_Define($$)
   $hash->{nrNAck} = 0;
   my @empty;
   $hash->{SendStack} = \@empty;
+  
+  return undef if (IsDisabled($hash->{NAME}));
+  
   my $ret = DevIo_OpenDev($hash, 0, "ZWDongle_DoInit");
   return $ret;
 }
 
+#####################################
+sub
+ZWDongle_Undefine($$) 
+{
+  my ($hash,$arg) = @_;
+  DevIo_CloseDev($hash); 
+  return undef;
+}
 
 #####################################
 sub
@@ -582,12 +596,39 @@ ZWDongle_Parse($$$)
   Dispatch($hash, $rmsg, \%addvals);
 }
 
+#####################################
+# Handles attribute changes
+sub
+ZWDongle_Attr($$$$) {
+  my ($command,$name,$attribute,$value) = @_;
+  my $hash = $defs{$name};
+  
+  # Handle "disable" attribute by opening/closing connection to device
+  if ($attribute eq "disable")
+  {
+    # Disable on 1, enable on anything else.
+    if ($value eq "1")
+    {
+      DevIo_CloseDev($hash);
+      $hash->{STATE} = "disabled";
+    }
+    else
+    {
+      DevIo_OpenDev($hash, 0, "ZWDongle_DoInit");
+    }
+  }
+
+  return undef;  
+  
+}
 
 #####################################
 sub
 ZWDongle_Ready($)
 {
   my ($hash) = @_;
+
+  return undef if (IsDisabled($hash->{NAME}));
 
   return DevIo_OpenDev($hash, 1, "ZWDongle_DoInit")
                 if($hash->{STATE} eq "disconnected");
@@ -696,6 +737,7 @@ ZWDongle_Ready($)
     <li><a href="#dummy">dummy</a></li>
     <li><a href="#do_not_notify">do_not_notify</a></li>
     <li><a href="#model">model</a></li>
+    <li><a href="#disable">disable</a></li>
   </ul>
   <br>
 
