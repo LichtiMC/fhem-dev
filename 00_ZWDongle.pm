@@ -1,5 +1,5 @@
 ##############################################
-# $Id: 00_ZWDongle.pm 6592 2014-09-21 20:01:13Z rudolfkoenig $
+# $Id: 00_ZWDongle.pm 6883 2014-11-04 21:51:16Z rudolfkoenig $
 # TODO:
 # - routing commands
 # - one command to create a fhem device for all nodeList entries
@@ -30,8 +30,7 @@ my %sets = (
   "removeNode"=> { cmd   => "4b%02x@",       # ZW_REMOVE_NODE_FROM_NETWORK',
                    param => {on=>0x81, off=>0x05 } },
   "createNode"=> { cmd   => "60%02x"  },     # ZW_REQUEST_NODE_INFO',
-  "neighborUpdate" => { cmd => "48",
-                   param => {noArg => ""} }, # ZW_REQUEST_NODE_NEIGHBOR_UPDATE
+  "neighborUpdate" => { cmd => "48%02x" },   # ZW_REQUEST_NODE_NEIGHBOR_UPDATE
   "sendNIF"   => { cmd   => "12%02x05@" },   # ZW_SEND_NODE_INFORMATION
 );
 
@@ -341,6 +340,8 @@ ZWDongle_Get($@)
       push @list, $type5[$r[5]-1] if($r[5]>0 && $r[5] <= @type5);
       push @list, $zw_type6{$id} if($zw_type6{$id});
       push @list, ($r[2] & 0x80) ? "listening" : "sleeping";
+      push @list, "frequentListening:" . ($r[3] & ( 0x20 | 0x40 ));
+      push @list, "beaming:" . ($r[3] & 0x10);
       push @list, "routing"   if($r[2] & 0x40);
       push @list, "40kBaud"   if(($r[2] & 0x38) == 0x10);
       push @list, "Vers:" . (($r[2]&0x7)+1);
