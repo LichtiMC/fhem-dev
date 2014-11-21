@@ -285,6 +285,14 @@ sub MilightDevice_Set(@)
     { # Seconds for transition (0..x)
       return $usage if (($args[1] !~ /^\d+$/) && ($args[1] >= 0)); # Decimal value for ramp > 0
       $ramp = $args[1];
+      # Special case, if percent=100 adjust the ramp so it matches the actual amount required.
+      # Eg. start: 80%. ramp 5seconds. Amount change: 100-80=20. Ramp time req: 20/100*5 = 1second.
+      if ($percentChange == 100)
+      {
+        my $difference = $percentChange - ReadingsVal($hash->{NAME}, "brightness", 0);
+        $ramp = ($difference/100) * $ramp;
+        Log3 ($hash, 5, "$hash->{NAME}_Set: dimdown. Adjusted ramp to $ramp");
+      }
     }
     
     my $newBrightness = ReadingsVal($hash->{NAME}, "brightness", 0) + $percentChange;
@@ -308,6 +316,14 @@ sub MilightDevice_Set(@)
     { # Seconds for transition (0..x)
       return $usage if (($args[1] !~ /^\d+$/) && ($args[1] >= 0)); # Decimal value for ramp > 0
       $ramp = $args[1];
+      # Special case, if percent=100 adjust the ramp so it matches the actual amount required.
+      # Eg. start: 80%. ramp 5seconds. Amount change: 80. Ramp time req: 80/100*5 = 4second.
+      if ($percentChange == 100)
+      {
+        my $difference = ReadingsVal($hash->{NAME}, "brightness", 0);
+        $ramp = ($difference/100) * $ramp;
+        Log3 ($hash, 5, "$hash->{NAME}_Set: dimdown. Adjusted ramp to $ramp");
+      }
     }
     
     my $newBrightness = ReadingsVal($hash->{NAME}, "brightness", 0) - $percentChange;
@@ -466,7 +482,7 @@ sub MilightDevice_Attr(@)
   # Allows you to set a default transition time for on/off
   if ($cmd eq 'set' && (($attribName eq 'defaultRampOn') || ($attribName eq 'defaultRampOff')))
   {
-    return "defaultRampOn/Off is required as numerical value [0..100]" if ($attribVal !~ /^\d*$/) || (($attribVal < 0) || ($attribVal > 100));
+    return "defaultRampOn/Off is required as numerical value [0..100]" if ($attribVal !~ /^[0-9]*\.?[0-9]*$/) || (($attribVal < 0) || ($attribVal > 100));
   }
   Log3 ($hash, 4, "$hash->{NAME}_Attr: Cmd: $cmd; Attribute: $attribName; Value: $attribVal"); 
   return undef;
