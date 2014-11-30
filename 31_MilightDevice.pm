@@ -83,7 +83,7 @@ sub MilightDevice_Initialize(@)
   $hash->{GetFn} = "MilightDevice_Get";
   $hash->{AttrFn} = "MilightDevice_Attr";
   $hash->{NotifyFn} = "MilightDevice_Notify";
-  $hash->{AttrList} = "IODev dimStep defaultRampOn defaultRampOff ".$readingFnAttributes;
+  $hash->{AttrList} = "IODev dimStep defaultRampOn defaultRampOff";
 
   FHEM_colorpickerInit();
     
@@ -155,7 +155,7 @@ sub MilightDevice_Define($$)
   }
 
   my $baseCmds = "on off toggle dim:slider,0,".round(100/MilightDevice_DimSteps($hash)).",100 dimup dimdown";
-  my $sharedCmds = "pair:noArg unpair:noArg restorePreviousState:noArg saveState:noArg restoreState:noArg";
+  my $sharedCmds = "pair unpair restorePreviousState:noArg saveState:noArg restoreState:noArg";
   $hash->{helper}->{COMMANDSET} = "$baseCmds hsv rgb:colorpicker,RGB discoModeUp:noArg discoSpeedUp:noArg discoSpeedDown:noArg $sharedCmds"
         if ($hash->{LEDTYPE} eq 'RGBW');
   $hash->{helper}->{COMMANDSET} = "$baseCmds hsv rgb:colorpicker,RGB discoModeUp discoModeDown discoSpeedUp discoSpeedDown $sharedCmds"
@@ -176,6 +176,9 @@ sub MilightDevice_Define($$)
   
   # Event on change reading
   $attr{$name}{"event-on-change-reading"} = "state,transitionInProgress" if (!defined($attr{$name}{"event-on-change-reading"}));
+  
+  # IODev
+  $attr{$name}{IODev} = $hash->{IODev} if (!defined($attr{$name}{IODev}));
   
   return undef;
 }
@@ -280,19 +283,10 @@ sub MilightDevice_Set(@)
     { # Percent change (0..100%)
       return $usage if (($args[0] !~ /^\d+$/) || (!($args[0] ~~ [0..100]))); # Decimal value for percent between 0..100
       $percentChange = $args[0]; # Percentage to change, will be converted in dev specific function
-    }
     if (defined($args[1]))
     { # Seconds for transition (0..x)
       return $usage if (($args[1] !~ /^\d+$/) && ($args[1] >= 0)); # Decimal value for ramp > 0
       $ramp = $args[1];
-      # Special case, if percent=100 adjust the ramp so it matches the actual amount required.
-      # Eg. start: 80%. ramp 5seconds. Amount change: 100-80=20. Ramp time req: 20/100*5 = 1second.
-      if ($percentChange == 100)
-      {
-        my $difference = $percentChange - ReadingsVal($hash->{NAME}, "brightness", 0);
-        $ramp = ($difference/100) * $ramp;
-        Log3 ($hash, 5, "$hash->{NAME}_Set: dimdown. Adjusted ramp to $ramp");
-      }
     }
     
     my $newBrightness = ReadingsVal($hash->{NAME}, "brightness", 0) + $percentChange;
@@ -311,19 +305,10 @@ sub MilightDevice_Set(@)
     { # Percent change (0..100%)
       return $usage if (($args[0] !~ /^\d+$/) || (!($args[0] ~~ [0..100]))); # Decimal value for percent between 0..100
       $percentChange = $args[0]; # Percentage to change, will be converted in dev specific function
-    }
     if (defined($args[1]))
     { # Seconds for transition (0..x)
       return $usage if (($args[1] !~ /^\d+$/) && ($args[1] >= 0)); # Decimal value for ramp > 0
       $ramp = $args[1];
-      # Special case, if percent=100 adjust the ramp so it matches the actual amount required.
-      # Eg. start: 80%. ramp 5seconds. Amount change: 80. Ramp time req: 80/100*5 = 4second.
-      if ($percentChange == 100)
-      {
-        my $difference = ReadingsVal($hash->{NAME}, "brightness", 0);
-        $ramp = ($difference/100) * $ramp;
-        Log3 ($hash, 5, "$hash->{NAME}_Set: dimdown. Adjusted ramp to $ramp");
-      }
     }
     
     my $newBrightness = ReadingsVal($hash->{NAME}, "brightness", 0) - $percentChange;
@@ -482,7 +467,7 @@ sub MilightDevice_Attr(@)
   # Allows you to set a default transition time for on/off
   if ($cmd eq 'set' && (($attribName eq 'defaultRampOn') || ($attribName eq 'defaultRampOff')))
   {
-    return "defaultRampOn/Off is required as numerical value [0..100]" if ($attribVal !~ /^[0-9]*\.?[0-9]*$/) || (($attribVal < 0) || ($attribVal > 100));
+    return "defaultRampOn/Off is required as numerical value [0..100]" if ($attribVal !~ /^\d*$/) || (($attribVal < 0) || ($attribVal > 100));
   }
   Log3 ($hash, 4, "$hash->{NAME}_Attr: Cmd: $cmd; Attribute: $attribName; Value: $attribVal"); 
   return undef;
@@ -1242,7 +1227,7 @@ sub MilightDevice_HSV_Transition(@)
     $satFrom = $hash->{helper}->{targetSat};
     $valFrom = $hash->{helper}->{targetVal};
     $timeFrom = $hash->{helper}->{targetTime};
-    Log3 ($hash, 5, "$hash->{NAME}_HSV_Transition: Prepare Start (cached): $hueFrom,$satFrom,$valFrom@".$timeFrom);
+    Log3 ($hash, 5, "$hash->{NAME}_HSV_Transition: Prepare Start (cached): $hueFrom,$satFrom,$valFrom@$timeFrom");
   }
   else
   {
@@ -1250,7 +1235,7 @@ sub MilightDevice_HSV_Transition(@)
     $satFrom = ReadingsVal($hash->{NAME}, "saturation", 0);
     $valFrom = ReadingsVal($hash->{NAME}, "brightness", 0);
     $timeFrom = gettimeofday();
-    Log3 ($hash, 5, "$hash->{NAME}_HSV_Transition: Prepare Start (actual): $hueFrom,$satFrom,$valFrom@".$timeFrom);
+    Log3 ($hash, 5, "$hash->{NAME}_HSV_Transition: Prepare Start (actual): $hueFrom,$satFrom,$valFrom@$timeFrom");
   }
 
   Log3 ($hash, 4, "$hash->{NAME}_HSV_Transition: Current: $hueFrom,$satFrom,$valFrom");
@@ -1591,8 +1576,8 @@ sub MilightDevice_CmdQueue_Clear(@)
   {
     if (($intAt{$args}{ARG} eq $hash) && ($intAt{$args}{FN} eq 'MilightDevice_CmdQueue_Exec'))
     {
-      Log3 ($hash, 5, "$hash->{NAME}_CmdQueue_Clear: Remove timer at: ".$intAt{$args}{TRIGGERTIME});
-      delete($intAt{$args});
+      Log3 ($hash, 5, "$hash->{NAME}_CmdQueue_Clear: Remove timer at: ".$intAt{$args}{TRIGGERTIME} );
+      delete($intAt{$args}) ;
     }
   }
   $hash->{helper}->{cmdQueue} = [];
