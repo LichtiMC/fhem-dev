@@ -155,7 +155,7 @@ sub MilightDevice_Define($$)
   }
 
   my $baseCmds = "on off toggle dim:slider,0,".round(100/MilightDevice_DimSteps($hash)).",100 dimup dimdown";
-  my $sharedCmds = "pair:noArg unpair:noArg restorePreviousState:noArg saveState:noArg restoreState:noArg";
+  my $sharedCmds = "pair unpair restorePreviousState:noArg saveState:noArg restoreState:noArg";
   $hash->{helper}->{COMMANDSET} = "$baseCmds hsv rgb:colorpicker,RGB discoModeUp:noArg discoSpeedUp:noArg discoSpeedDown:noArg $sharedCmds"
         if ($hash->{LEDTYPE} eq 'RGBW');
   $hash->{helper}->{COMMANDSET} = "$baseCmds hsv rgb:colorpicker,RGB discoModeUp discoModeDown discoSpeedUp discoSpeedDown $sharedCmds"
@@ -176,6 +176,9 @@ sub MilightDevice_Define($$)
   
   # Event on change reading
   $attr{$name}{"event-on-change-reading"} = "state,transitionInProgress" if (!defined($attr{$name}{"event-on-change-reading"}));
+  
+  # IODev
+  $attr{$name}{IODev} = $hash->{IODev} if (!defined($attr{$name}{IODev}));
   
   return undef;
 }
