@@ -1604,3 +1604,186 @@ sub MilightDevice_CmdQueue_Clear(@)
 }
 
 1;
+
+=pod
+=begin html
+
+<a name="MilightDevice"></a>
+<h3>MilightDevice</h3>
+<ul>
+  <p>This module represents a Milight LED Bulb or LED strip controller.  It is controlled by a <a href="#MilightBridge">MilightBridge</a>.</p>
+  <p>The Milight system is sold under various brands around the world including "LimitlessLED, EasyBulb, AppLamp"</p>
+  <p>The API documentation is available here: <a href="http://www.limitlessled.com/dev/">http://www.limitlessled.com/dev/</a></p>
+
+  <a name="MilightDevice_define"></a>
+  <p><b>Define</b></p>
+  <ul>
+    <p><code>define &lt;name&gt; MilightDevice &lt;devType(RGB|RGBW|White)&gt; &lt;IODev&gt; &lt;slot&gt;</code></p>
+    <p>Specifies the Milight device.<br/>
+       &lt;devType&gt; One of RGB, RGBW, White depending on your device.<br/>
+       &lt;IODev&gt; The <a href="#MilightBridge">MilightBridge</a> which the device is paired with.<br/>
+       &lt;slot&gt; The slot on the <a href="#MilightBridge">MilightBridge</a> that the device is paired with.</p>
+  </ul>
+  <a name="MilightDevice_readings"></a>
+  <p><b>Readings</b></p>
+  <ul>
+    <li>
+      <b>state</b><br/>
+         [on xxx|off]: Current state of the device (xxx = 0-100%).
+    </li>
+    <li>
+      <b>brightness</b><br/>
+         [0-100]: Current brightness level in %.
+    </li>
+    <li>
+      <b>brightness_on</b><br/>
+         [0-100]: The brightness level before the off command was sent.  This allows the light to turn back on to the last brightness level.
+    </li>
+    <li>
+      <b>RGB</b><br/>
+         [FFFFFF]: HEX value for RGB.
+    </li>
+    <li>
+      <b>previousState</b><br/>
+         [hsv]: hsv value before last change.  Can be used with <b>restorePreviousState</b> set command.
+    </li>
+    <li>
+      <b>savedState</b><br/>
+         [hsv]: hsv value that was saved using <b>saveState</b> set function
+    </li>
+    <li>
+      <b>hue</b><br/>
+         [0-360]: Current hue value.
+    </li>
+    <li>
+      <b>saturation</b><br/>
+         [0-100]: Current saturation value.
+    </li>
+    <li>
+      <b>transitionInProgress</b><br/>
+         [0|1]: Set to 1 if a transition is currently in progress for this device (eg. fade).
+    </li>
+    <li>
+      <b>discoMode</b><br/>
+         [0|1]: 1 if discoMode is enabled, 0 otherwise.
+    </li>
+    <li>
+      <b>discoSpeed</b><br/>
+         [0|1]: 1 if discoSpeed is increased, 0 if decreased.  Does not mean much for RGBW
+    </li>
+    <li>
+      <b>colourTemperature</b><br/>
+         [1-10]: Current colour temperature (1=Cold,10=Warm) for White devices.
+    </li>
+  </ul>
+
+  <a name="MilightDevice_set"></a>
+  <p><b>Set</b></p>
+  <ul>
+    <li>
+      <b>on &lt;ramp_time (seconds)></b>
+    </li>
+    <li>
+      <b>off &lt;ramp_time (seconds)></b>
+    </li>
+    <li>
+      <b>toggle</b>     
+    </li>
+    <li>
+      <b>dim &lt;percent(0..100)&gt; [seconds(0..x)] [flags(l=long path|q=don't clear queue)]</b>
+    </li>
+    <li>
+      <b>dimup &lt;percent change(0..100)&gt; [seconds(0..x)]</b><br/>
+         Special case: If percent change=100, seconds will be adjusted for actual change to go from current brightness.
+    </li>
+    <li>
+      <b>dimdown &lt;percent change(0..100)&gt; [seconds(0..x)]</b><br/>
+         Special case: If percent change=100, seconds will be adjusted for actual change to go from current brightness.
+    </li>
+    <li>
+      <b>pair</b><br/>
+         May not work properly. Sometimes it is necessary to use a remote to clear pairing first.
+    </li>
+    <li>
+      <b>unpair</b><br/>
+         May not work properly. Sometimes it is necessary to use a remote to clear pairing first.
+    </li>
+    <li>
+      <b>restorePreviousState</b><br/>
+         Set device to previous hsv state as stored in <b>previousState</b> reading.
+    </li>
+    <li>
+      <b>saveState</b><br/>
+         Save current hsv state to <b>savedState</b> reading.
+    </li>
+    <li>
+      <b>restoreState</b><br/>
+         Set device to saved hsv state as stored in <b>savedState</b> reading.
+    </li>
+    <li>
+      <b>hsv &lt;h(0..360)&gt;,&lt;s(0..100)&gt;,&lt;v(0..100)&gt; [seconds(0..x)] [flags(l=long path|q=don't clear queue)]</b><br/>
+         Set hsv value directly
+    </li>
+    <li>
+      <b>rgb RRGGBB [seconds(0..x)] [flags(l=long path|q=don't clear queue)]</b><br/>
+         Set rgb value directly or using colorpicker.
+    </li>
+    <li>
+      <b>discoModeUp</b><br/>
+         Next disco Mode setting (for RGB and RGBW).
+    </li>
+    <li>
+      <b>discoModeDown</b><br/>
+         Previous disco Mode setting (for RGB).
+    </li>
+    <li>
+      <b>discoSpeedUp</b><br/>
+         Increase speed of disco mode (for RGB and RGBW).
+    </li>
+    <li>
+      <b>discoSpeedDown</b><br/>
+         Decrease speed of disco mode (for RGB and RGBW).
+    </li>
+    <li>
+      <b>colourTemperature &lt;1-10&gt;</b><br/>
+         Colour temperature 1=Cold White,10=Warm White (for White devices only).
+    </li>
+    <li>
+      <a href="#setExtensions"> set extensions</a> are supported.
+    </li>
+  </ul>
+
+  <a name="MilightDevice_get"></a>
+  <p><b>Get</b></p>
+  <ul>
+    <li>
+      <b>rgb</b>
+    </li>
+    <li>
+      <b>RGB</b>
+    </li>
+    <li>
+      <b>hsv</b>
+    </li>
+  </ul>
+  
+  <a name="MilightDevice_attr"></a>
+  <p><b>Attributes</b></p>
+  <ul>
+    <li>
+      <b>dimStep</b><br/>
+         Allows you to modify the default dimStep if required.
+    </li>
+    <li>
+      <b>defaultRampOn</b><br/>
+         Set the default ramp time if not specified for on command.
+    </li>
+    <li>
+      <b>defaultRampOff</b><br/>
+         Set the default ramp time if not specified for off command.
+    </li>
+  </ul>
+</ul>
+
+=end html
+=cut

@@ -48,7 +48,7 @@ sub MilightBridge_Initialize($)
   $hash->{UndefFn}  = "MilightBridge_Undefine";
   $hash->{NotifyFn} = "MilightBridge_Notify";
   $hash->{AttrFn}   = "MilightBridge_Attr";
-  $hash->{AttrList} = "sendInterval ".$readingFnAttributes;
+  $hash->{AttrList} = "port sendInterval ".$readingFnAttributes;
 
   return undef;
 }
@@ -66,7 +66,9 @@ sub MilightBridge_Define($$)
 
   # Parameters
   $hash->{HOST} = $host;
-  $hash->{PORT} = 8899;
+  # Set Port (Default 8899, old bridge (V2) uses 50000
+  $attr{$name}{"port"} = "8899" if (!defined($attr{$name}{"port"}));
+  $hash->{PORT} = $attr{$name}{"port"};
 
   # Create local socket    
   my $sock = IO::Socket::INET-> new (
@@ -130,6 +132,19 @@ sub MilightBridge_Attr($$$$) {
     {
       $hash->{INTERVAL} = $attr{$name}{"sendInterval"};
     }
+  }
+  elsif ($attribute eq "port")
+  {
+    if (($value !~ /^\d*$/) || ($value < 1))
+    {
+      $attr{$name}{"port"} = 100;
+      $hash->{PORT} = $attr{$name}{"port"};
+      return "port is required as numeric (default: 8899)";
+    }
+    else
+    {
+      $hash->{PORT} = $attr{$name}{"port"};
+    }  
   }
 
   return undef;  
@@ -219,7 +234,6 @@ sub MilightBridge_Write(@)
   # Add command to queue
   push @{$hash->{cmdQueue}}, $cmd;
 
-
   MilightBridge_CmdQueue_Send($hash);
 }
 
@@ -304,3 +318,53 @@ sub MilightBridge_CmdQueue_Send(@)
 }
 
 1;
+
+=pod
+=begin html
+
+<a name="MilightBridge"></a>
+<h3>MilightBridge</h3>
+<ul>
+  <p>This module is the interface to a Milight Bridge which is connected to the network using a Wifi connection.  It uses a UDP protocal with no acknowledgement so there is no guarantee that your command was received.</p>
+  <p>The Milight system is sold under various brands around the world including "LimitlessLED, EasyBulb, AppLamp"</p>
+  <p>The API documentation is available here: <a href="http://www.limitlessled.com/dev/">http://www.limitlessled.com/dev/</a></p>
+
+  <a name="MilightBridge_define"></a>
+  <p><b>Define</b></p>
+  <ul>
+    <p><code>define &lt;name&gt; MilightBridge &lt;host/ip&gt;</code></p>
+    <p>Specifies the MilightBridge device.<br/>
+       &lt;host/ip&gt; is the hostname or IP address of the Bridge.</p>
+  </ul>
+  <a name="MilightBridge_readings"></a>
+  <p><b>Readings</b></p>
+  <ul>
+    <li>
+      <b>state</b><br/>
+         [on|off]: Set depending on result of a UDP ping sent every 10 seconds.
+    </li>
+    <li>
+      <b>sendFail</b><br/>
+         0 if everything is OK. 1 if the send function was unable to send the command - this would indicate a problem with your network and/or host/port parameters.
+    </li>
+    <li>
+      <b>slot[0|1|2|3|4|5|6|7|8]</b><br/>
+         The slotX reading will display the name of the <a href="#MilightDevice">MilightDevice</a> that is defined with this Bridge as it's <a href="#IODev">IODev</a>.  It will be blank if no device is defined for that slot.
+    </li>
+  </ul>
+  <a name="MilightBridge_attr"></a>
+  <p><b>Attributes</b></p>
+  <ul>
+    <li>
+      <b>sendInterval</b><br/>
+         Default: 100ms. The bridge has a minimum send delay of 100ms between commands.
+    </li>
+    <li>
+      <b>port</b><br/>
+         Default: 8899. Older bridges (V2) used port 50000 so change this value if you have an old bridge.
+    </li>
+  </ul>
+</ul>
+
+=end html
+=cut
