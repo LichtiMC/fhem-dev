@@ -15,7 +15,7 @@ sequence_Initialize($)
   $hash->{DefFn} = "sequence_Define";
   $hash->{UndefFn} = "sequence_Undef";
   $hash->{NotifyFn} = "sequence_Notify";
-  $hash->{AttrList} = "disable:0,1 triggerPartial:1,0 reportEvents:1,0";
+  $hash->{AttrList} = "disable:0,1 triggerPartial:1,0 reportEvents:1,0 showTriggerTime:0,1";
 }
 
 
@@ -47,7 +47,7 @@ sequence_Define($$)
   $hash->{RE} = $def[0];
   $hash->{IDX} = 0;
   $hash->{MAX} = int(@def);
-  $hash->{STATE} = "initialized";
+  $hash->{STATE} = "active";
   return undef;
 }
 
@@ -83,6 +83,8 @@ sequence_Notify($$)
       delete($hash->{EVENTS});
 
       Log3 $ln, 5, "sequence $ln $tt";
+      $hash->{STATE} =
+        AttrVal($ln,'showTriggerTime',1) ? $dev->{NTFY_TRIGGERTIME} : 'active';
       DoTrigger($ln, $tt);
       $idx  = 0;
 
@@ -189,6 +191,10 @@ sequence_Undef($$)
         define n_b2b1 notify seq:trigger.remote:btn2.remote:btn1 set lamp1 off<br>
       </code></ul>
       </li>
+    <li>showTriggerTime<br/>
+        Show the timestamp of the last execution as the status (STATE) of the
+        sequence instance. Default is 1 (on).
+        </li>
   </ul>
   <br>
 
@@ -278,6 +284,10 @@ sequence_Undef($$)
         define n_b2b1 notify seq:trigger.remote:btn2.remote:btn1 set lamp1 off<br>
       </code></ul>
       </li>
+    <li>showTriggerTime<br/>
+        Zeigt den Zeitstempel der letzten Ausf&uuml;hrung als Status an.
+        Voreinstellung ist 1 (an).
+        </li>
   </ul>
   <br>
 
