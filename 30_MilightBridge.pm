@@ -41,14 +41,13 @@ sub MilightBridge_Initialize($)
   # Provider
   # $hash->{ReadFn}  = "MilightBridge_Read";
   $hash->{WriteFn}  = "MilightBridge_Write";
-  $hash->{Clients} = ":Milight:";
 
   #Consumer
   $hash->{DefFn}    = "MilightBridge_Define";
   $hash->{UndefFn}  = "MilightBridge_Undefine";
   $hash->{NotifyFn} = "MilightBridge_Notify";
   $hash->{AttrFn}   = "MilightBridge_Attr";
-  $hash->{AttrList} = "port sendInterval ".$readingFnAttributes;
+  $hash->{AttrList} = "port sendInterval disable:0,1 ".$readingFnAttributes;
 
   return undef;
 }
@@ -63,6 +62,10 @@ sub MilightBridge_Define($$)
   return "Usage: define <name> MilightBridge <host/ip>"  if(@args < 3);
 
   my ($name, $type, $host) = @args;
+
+  $hash->{Clients} = ":MilightDevice:";
+  my %matchList = ( "1:MilightDevice" => ".*" );
+  $hash->{MatchList} = \%matchList;
 
   # Parameters
   $hash->{HOST} = $host;
@@ -146,6 +149,19 @@ sub MilightBridge_Attr($$$$) {
       $hash->{PORT} = $attr{$name}{"port"};
     }  
   }
+  # Handle "disable" attribute by opening/closing connection to device
+  elsif ($attribute eq "disable")
+  {
+    # Disable on 1, enable on anything else.
+    if ($value eq "1")
+    {
+      $hash->{STATE} = "disabled";
+    }
+    else
+    {
+      $hash->{STATE} = "ok";
+    }
+  }
 
   return undef;  
 }
@@ -155,13 +171,15 @@ sub MilightBridge_Attr($$$$) {
 sub MilightBridge_Notify($$)
 {
   my ($hash,$dev) = @_;
-  Log3 ($hash, 5, "$hash->{NAME}_Notify: Triggered by $dev->{NAME}");
+  Log3 ($hash, 5, "$hash->{NAME}_Notify: Triggered by $dev->{NAME}; @{$dev->{CHANGED}}");
   
   return if($dev->{NAME} ne "global");
-  return if(!grep(m/^INITIALIZED|REREADCFG|DEFINED$/, @{$dev->{CHANGED}}));
-
-  MilightBridge_SlotUpdate($hash);
   
+  if(grep(m/^(INITIALIZED|REREADCFG|DEFINED.*|MODIFIED.*|DELETED.*)$/, @{$dev->{CHANGED}}))
+  {
+    MilightBridge_SlotUpdate($hash);
+  }  
+
   return undef;
 }
 
@@ -176,12 +194,12 @@ sub MilightBridge_State(@)
   
   # Do a ping check to see if bridge is reachable
   # check via ping
-  my $pingstatus = "on";
+  my $pingstatus = "ok";
   my $p = Net::Ping->new('udp');
   if( $p->ping($hash->{HOST}, 2)) {
-      $pingstatus = "on";
+      $pingstatus = "ok";
   } else {
-      $pingstatus = "off";
+      $pingstatus = "unreachable";
   }
   $p->close();
   # And update state
@@ -206,15 +224,15 @@ sub MilightBridge_SlotUpdate(@)
   Log3 ( $hash, 5, "$hash->{NAME}_State: Updating Slot readings");
 
   readingsBeginUpdate($hash);
-  readingsBulkUpdate($hash, "slot0", $hash->{0}->{NAME});
-  readingsBulkUpdate($hash, "slot1", $hash->{1}->{NAME});
-  readingsBulkUpdate($hash, "slot2", $hash->{2}->{NAME});
-  readingsBulkUpdate($hash, "slot3", $hash->{3}->{NAME});
-  readingsBulkUpdate($hash, "slot4", $hash->{4}->{NAME});
-  readingsBulkUpdate($hash, "slot5", $hash->{5}->{NAME});
-  readingsBulkUpdate($hash, "slot6", $hash->{6}->{NAME});
-  readingsBulkUpdate($hash, "slot7", $hash->{7}->{NAME});
-  readingsBulkUpdate($hash, "slot8", $hash->{8}->{NAME});
+  readingsBulkUpdate($hash, "slot0", (defined($hash->{0}->{NAME}) ? $hash->{0}->{NAME} : ""));
+  readingsBulkUpdate($hash, "slot1", (defined($hash->{1}->{NAME}) ? $hash->{1}->{NAME} : ""));
+  readingsBulkUpdate($hash, "slot2", (defined($hash->{2}->{NAME}) ? $hash->{2}->{NAME} : ""));
+  readingsBulkUpdate($hash, "slot3", (defined($hash->{3}->{NAME}) ? $hash->{3}->{NAME} : ""));
+  readingsBulkUpdate($hash, "slot4", (defined($hash->{4}->{NAME}) ? $hash->{4}->{NAME} : ""));
+  readingsBulkUpdate($hash, "slot5", (defined($hash->{5}->{NAME}) ? $hash->{5}->{NAME} : ""));
+  readingsBulkUpdate($hash, "slot6", (defined($hash->{6}->{NAME}) ? $hash->{6}->{NAME} : ""));
+  readingsBulkUpdate($hash, "slot7", (defined($hash->{7}->{NAME}) ? $hash->{7}->{NAME} : ""));
+  readingsBulkUpdate($hash, "slot8", (defined($hash->{8}->{NAME}) ? $hash->{8}->{NAME} : ""));
   readingsEndUpdate($hash, 1);
   
   return undef;
@@ -271,20 +289,24 @@ sub MilightBridge_CmdQueue_Send(@)
       my $hexStr = unpack("H*", $command || '');
       Log3 ($hash, 5, "$hash->{NAME} send: $hexStr@".gettimeofday()."; Queue Length: ".@{$hash->{cmdQueue}});
 
-      my $portaddr = sockaddr_in($hash->{PORT}, inet_aton($hash->{HOST}));
-      if (!send($hash->{SOCKET}, $command, 0, $portaddr))
+      # Check bridge is not disabled, and send command
+      if (!IsDisabled($hash->{NAME}))
       {
-        # Send failed
-        Log3 ($hash, 3, "$hash->{NAME} Send FAILED! ".gettimeofday().":$hexStr. Queue Length: ".@{$hash->{cmdQueue}});
-        $hash->{SENDFAIL} = 1;
+        my $portaddr = sockaddr_in($hash->{PORT}, inet_aton($hash->{HOST}));
+        if (!send($hash->{SOCKET}, $command, 0, $portaddr))
+        {
+          # Send failed
+          Log3 ($hash, 3, "$hash->{NAME} Send FAILED! ".gettimeofday().":$hexStr. Queue Length: ".@{$hash->{cmdQueue}});
+          $hash->{SENDFAIL} = 1;
+        }
+        else
+        {
+          # Send successful
+          $hash->{cmdLastSent} = gettimeofday(); # Update time last sent
+          shift @{$hash->{cmdQueue}}; # transmission complete, remove command from queue
+        }
       }
-      else
-      {
-        # Send successful
-        $hash->{cmdLastSent} = gettimeofday(); # Update time last sent
-        shift @{$hash->{cmdQueue}}; # transmission complete, remove command from queue
-      }
-    }  
+    }
   }
   else
   {
@@ -341,7 +363,7 @@ sub MilightBridge_CmdQueue_Send(@)
   <ul>
     <li>
       <b>state</b><br/>
-         [on|off]: Set depending on result of a UDP ping sent every 10 seconds.
+         [ok|unreachable]: Set depending on result of a UDP ping sent every 10 seconds.
     </li>
     <li>
       <b>sendFail</b><br/>

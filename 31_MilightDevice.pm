@@ -140,7 +140,11 @@ sub MilightDevice_Define($$)
   }
 
   # Look for already defined device on IODev
-  return "Slot $hash->{SLOT} already defined as $hash->{IODev}->{$hash->{SLOT}}->{NAME}" if (defined($hash->{IODev}->{$hash->{SLOT}}->{NAME}));
+  if (defined($hash->{IODev}->{$hash->{SLOT}}->{NAME}))
+  {
+    # If defined slot does not match current device name don't allow new definition.  Redefining the same device is ok though.
+    return "Slot $hash->{SLOT} already defined as $hash->{IODev}->{$hash->{SLOT}}->{NAME}" if ($hash->{IODev}->{$hash->{SLOT}}->{NAME} ne $name);
+  }
   # Define device on IODev
   $hash->{IODev}->{$hash->{SLOT}}->{NAME} = $name;
 
@@ -190,6 +194,8 @@ sub MilightDevice_Undef(@)
   my ($hash,$args) = @_;
 
   RemoveInternalTimer($hash);
+  # Remove slot on bridge
+  delete ($hash->{IODev}->{$hash->{SLOT}}->{NAME});
 
   return undef;
 }
@@ -615,61 +621,54 @@ sub MilightDevice_RGB_Dim(@)
 sub MilightDevice_RGB_SetHSV(@)
 {
   my ($hash, $hue, $sat, $val, $repeat) = @_;
-  Log3 ($hash, 4, "$hash->{NAME}_RGB_setHSV: RGB slot $hash->{SLOT} set h:$hue, s:$sat, v:$val"); 
+  Log3 ($hash, 4, "$hash->{NAME}_RGB_setHSV: RGB slot $hash->{SLOT} set h:$hue, s:$sat, v:$val");
   $sat = 100;
   MilightDevice_SetHSV_Readings($hash, $hue, $sat, $val);
   # convert to device specs
   my ($cv, $cl, $wl) = MilightDevice_RGB_ColorConverter($hash, $hue, $sat, $val);
   Log3 ($hash, 4, "$hash->{NAME}_RGB_setHSV: RGB slot $hash->{SLOT} set levels: $cv, $cl, $wl");
+  
+  $repeat = 1 if (!defined($repeat));
+  
+  # On first load, colorLevel won't be defined, define it.
+  $hash->{helper}->{colorLevel} = $cl if (!defined($hash->{helper}->{colorLevel}));
 
-  # mode 0: off, 1: mixed "white", 2: color
-  # need to touch color value (only if visible) or color level ?
-  if ((($hash->{helper}->{colorValue} != $cv) && ($cl > 0)) || $hash->{helper}->{colorLevel} != $cl)
+  # NOTE: All commands sent twice for reliability (it's udp with no feedback)
+  
+  if (($wl < 1) && ($cl < 1)) # off
   {
-    # if color all off switch on
-    if ($hash->{helper}->{mode} == 0)
+    # if no white or colour switch off
+    IOWrite($hash, "\x21\x00\x55"); # switch off
+    $hash->{helper}->{colorLevel} = 0;  
+  }
+  else # on
+  {
+    if (($wl > 0) || ($cl > 0)) # Colour/White on
     {
       IOWrite($hash, "\x22\x00\x55"); # switch on
       IOWrite($hash, "\x20".chr($cv)."\x55"); # set color
-      $hash->{helper}->{colorValue} = $cv;
-      $hash->{helper}->{colorLevel} = 1;
-      $hash->{helper}->{mode} = 2;
-    }
-    elsif ($hash->{helper}->{mode} == 1)
-    {
-      IOWrite($hash, "\x20".chr($cv)."\x55"); # set color
-      $hash->{helper}->{colorValue} = $cv;
-      $hash->{helper}->{mode} = 2;
-    }
-    else
-    {
-      $hash->{helper}->{colorValue} = $cv;
-      IOWrite($hash, "\x20".chr($cv)."\x55"); # set color
-    }
-    # cl decrease
-    if ($hash->{helper}->{colorLevel} > $cl)
-    {
-      for (my $i=$hash->{helper}->{colorLevel}; $i > $cl; $i--) 
-      {
-        IOWrite($hash, "\x24\x00\x55"); # brightness down
-        $hash->{helper}->{colorLevel} = $i - 1;
+      if ($repeat eq 1) {
+        IOWrite($hash, "\x22\x00\x55"); # switch on
+        IOWrite($hash, "\x20".chr($cv)."\x55"); # set color
       }
-      if ($cl == 0)
+      
+      # cl decrease
+      if ($hash->{helper}->{colorLevel} > $cl)
       {
-        # need to switch off color
-        # if no white is required and no white is active we can must entirely switch off
-        IOWrite($hash, "\x21\x00\x55"); # switch off
-        $hash->{helper}->{colorLevel} = 0;
-        $hash->{helper}->{mode} = 0;
+        for (my $i=$hash->{helper}->{colorLevel}; $i > $cl; $i--) 
+        {
+          IOWrite($hash, "\x24\x00\x55"); # brightness down
+          $hash->{helper}->{colorLevel} = $i - 1;
+        }
       }
-    }
-    # cl increase
-    if ($hash->{helper}->{colorLevel} < $cl)
-    {
-      for (my $i=$hash->{helper}->{colorLevel}; $i < $cl; $i++)
+      # cl increase
+      if ($hash->{helper}->{colorLevel} < $cl)
       {
-        IOWrite($hash, "\x23\x00\x55"); # brightness up
-        $hash->{helper}->{colorLevel} = $i + 1;
+        for (my $i=$hash->{helper}->{colorLevel}; $i < $cl; $i++)
+        {
+          IOWrite($hash, "\x23\x00\x55"); # brightness up
+          $hash->{helper}->{colorLevel} = $i + 1;
+        }
       }
     }
   }
@@ -790,7 +789,6 @@ sub MilightDevice_RGBW_SetHSV(@)
 
   my $cv = $hash->{helper}->{COLORMAP}[$hue % 360];
 
-  # mode 0 = off, 1 = color, 2 = white, 3 = disco
   # brightness 2..27 (x02..x1b) | 25 dim levels
   
   my $cf = round((($val / 100) * MilightDevice_DimSteps($hash)) + 2);
@@ -820,7 +818,6 @@ sub MilightDevice_RGBW_SetHSV(@)
     IOWrite($hash, @RGBWCmdsOff[$hash->{SLOT} -5]."\x00".$RGBWCmdEnd) if ($repeat eq 1); # group off
     $hash->{helper}->{whiteLevel} = 0;
     $hash->{helper}->{colorLevel} = 0;
-    $hash->{helper}->{mode} = 0; # group off
   }
   else # on
   {
@@ -834,7 +831,6 @@ sub MilightDevice_RGBW_SetHSV(@)
         IOWrite($hash, @RGBWCmdsWT[$hash->{SLOT} -5]."\x00".$RGBWCmdEnd); # white
         IOWrite($hash, $RGBWCmdBri.chr($wl).$RGBWCmdEnd); # brightness
       }
-      $hash->{helper}->{mode} = 2; # white
     }
     elsif ($cl > 0) # color
     {
@@ -846,7 +842,6 @@ sub MilightDevice_RGBW_SetHSV(@)
         IOWrite($hash, $RGBWCmdCol.chr($cv).$RGBWCmdEnd); # color
         IOWrite($hash, $RGBWCmdBri.chr($cl).$RGBWCmdEnd); # brightness
       }
-      $hash->{helper}->{mode} = 1; # color
     }
 
     $hash->{helper}->{colorValue} = $cv;
@@ -886,8 +881,6 @@ sub MilightDevice_RGBW_DiscoModeStep(@)
     # There is no discoMode step down for RGBW
   }
   
-  $hash->{helper}->{mode} = 3; # disco
-  
   return undef;
 }
 
@@ -919,8 +912,6 @@ sub MilightDevice_RGBW_DiscoModeSpeed(@)
     IOWrite($hash, "\x26\x00\x55") if ($hash->{LEDTYPE} eq 'RGB'); # discoMode speed down
     IOWrite($hash, $RGBWCmdDiscoDec."\x00".$RGBWCmdEnd) if ($hash->{LEDTYPE} eq 'RGBW'); # discoMode speed down
   }
-
-  $hash->{helper}->{mode} = 3; # disco
   
   return undef;
 }
