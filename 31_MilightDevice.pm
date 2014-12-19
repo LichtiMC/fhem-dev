@@ -483,6 +483,10 @@ sub MilightDevice_Attr(@)
   my ($cmd, $device, $attribName, $attribVal) = @_;
   my $hash = $defs{$device};
 
+  $attribVal = "" if (!defined($attribVal));
+
+  Log3 ($hash, 4, "$hash->{NAME}_Attr: Cmd: $cmd; Attribute: $attribName; Value: $attribVal");
+
   # Allows you to modify the default number of dimSteps for a device
   if ($cmd eq 'set' && $attribName eq 'dimStep')
   {
@@ -493,7 +497,7 @@ sub MilightDevice_Attr(@)
   {
     return "defaultRampOn/Off is required as numerical value [0..100]" if ($attribVal !~ /^[0-9]*\.?[0-9]*$/) || (($attribVal < 0) || ($attribVal > 100));
   }
-  Log3 ($hash, 4, "$hash->{NAME}_Attr: Cmd: $cmd; Attribute: $attribName; Value: $attribVal"); 
+
   return undef;
 }
 
@@ -504,10 +508,11 @@ sub MilightDevice_Notify(@)
   my ($hash,$dev) = @_;
   my $events = deviceEvents($dev, 1);
   my ($hue, $sat, $val);
-
-  Log3 ($hash, 5, "$hash->{NAME}_Notify: Triggered by $dev->{NAME}");
   
   return if($dev->{NAME} ne "global");
+
+  Log3 ($hash, 5, "$hash->{NAME}_Notify: Triggered by $dev->{NAME}");
+
   return if(!grep(m/^INITIALIZED|REREADCFG|DEFINED$/, @{$dev->{CHANGED}}));
 
   # Clear inProgress flag
@@ -1507,8 +1512,8 @@ sub MilightDevice_CmdQueue_Add(@)
 
   push @{$hash->{helper}->{cmdQueue}}, $cmd;
 
-  my $hexStr = unpack("H*", $cmd->{ctrl} || '');
-  Log3 ($hash, 4, "$hash->{NAME}_CmdQueue_Add: h: $cmd->{hue}; s: $cmd->{sat}; v: $cmd->{val}; Ctrl $hexStr; TargetTime: $cmd->{targetTime}; QLen: ".@{$hash->{helper}->{cmdQueue}});
+  my $hexStr = defined($cmd->{ctrl})? unpack("H*", $cmd->{ctrl} || '') : "";
+  Log3 ($hash, 4, "$hash->{NAME}_CmdQueue_Add: h: ".(defined($cmd->{hue})? $cmd->{hue}: "")."; s: ".(defined($cmd->{sat})? $cmd->{sat}: "")."; v: ".(defined($cmd->{val})? $cmd->{val}: "")."; Ctrl $hexStr; TargetTime: ".(defined($cmd->{targetTime})? $cmd->{targetTime}: "")."; QLen: ".@{$hash->{helper}->{cmdQueue}});
 
   my $actualCmd = @{$hash->{helper}->{cmdQueue}}[0];
 
@@ -1547,7 +1552,7 @@ sub MilightDevice_CmdQueue_Exec(@)
     $nextCmd = @{$hash->{helper}->{cmdQueue}}[1];
     Log3 ($hash, 4, "$hash->{NAME}_CmdQueue_Exec: Drop Frame. Queue Length: ".@{$hash->{helper}->{cmdQueue}});
   }
-  Log3 ($hash, 5, "$hash->{NAME}_CmdQueue_Exec: Dropper Delay: ".($actualCmd->{targetTime} - gettimeofday()));
+  Log3 ($hash, 5, "$hash->{NAME}_CmdQueue_Exec: Dropper Delay: ".($actualCmd->{targetTime} - gettimeofday())) if (defined($actualCmd->{targetTime}));
 
   # set hsv or if a device ctrl command is scheduled: send it and ignore hsv
   if ($actualCmd->{ctrl})
