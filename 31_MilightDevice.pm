@@ -83,7 +83,7 @@ sub MilightDevice_Initialize(@)
   $hash->{GetFn} = "MilightDevice_Get";
   $hash->{AttrFn} = "MilightDevice_Attr";
   $hash->{NotifyFn} = "MilightDevice_Notify";
-  $hash->{AttrList} = "IODev dimStep defaultRampOn defaultRampOff ".$readingFnAttributes;
+  $hash->{AttrList} = "IODev dimStep defaultRampOn defaultRampOff defaultState ".$readingFnAttributes;
 
   FHEM_colorpickerInit();
     
@@ -159,7 +159,7 @@ sub MilightDevice_Define($$)
   }
 
   my $baseCmds = "on off toggle dim:slider,0,".round(100/MilightDevice_DimSteps($hash)).",100 dimup dimdown";
-  my $sharedCmds = "pair unpair restorePreviousState:noArg saveState:noArg restoreState:noArg";
+  my $sharedCmds = "pair unpair restorePreviousState:noArg saveState:noArg restoreState:noArg defaultState:noArg";
   $hash->{helper}->{COMMANDSET} = "$baseCmds hsv rgb:colorpicker,RGB discoModeUp:noArg discoSpeedUp:noArg discoSpeedDown:noArg $sharedCmds"
         if ($hash->{LEDTYPE} eq 'RGBW');
   $hash->{helper}->{COMMANDSET} = "$baseCmds hsv rgb:colorpicker,RGB discoModeUp discoModeDown discoSpeedUp discoSpeedDown $sharedCmds"
@@ -368,7 +368,7 @@ sub MilightDevice_Set(@)
     return $usage if ($args[0] !~ /^([0-9A-Fa-f]{1,2})([0-9A-Fa-f]{1,2})([0-9A-Fa-f]{1,2})$/);
     my( $r, $g, $b ) = (hex($1)/255.0, hex($2)/255.0, hex($3)/255.0);
     my( $h, $s, $v ) = Color::rgb2hsv($r,$g,$b);
-    $h *= 360; $s *= 100; $v *= 100;
+    $h = round($h * 360); $s = round($s * 100); $v = round($v * 100);
     if (defined($args[1]))
     {
       return $usage if (($args[1] !~ /^\d+$/) && ($args[1] > 0)); # Decimal value for ramp > 0
@@ -451,6 +451,11 @@ sub MilightDevice_Set(@)
     my ($h, $s, $v) = MilightDevice_HSVFromStr($hash, ReadingsVal($hash->{NAME}, "savedState", MilightDevice_HSVToStr($hash, 0, 0, 0)));
     return MilightDevice_HSV_Transition($hash, $h, $s, $v, 0, '');
   }
+  elsif ($cmd eq 'defaultState')
+  {
+    my ($h, $s, $v) = MilightDevice_HSVFromStr($hash, AttrVal($hash->{NAME}, "defaultState", MilightDevice_HSVToStr($hash, 0, 0, 100)));
+    return MilightDevice_HSV_Transition($hash, $h, $s, $v, 0, '');
+  }
 
   return SetExtensions($hash, $hash->{helper}->{COMMANDSET}, $name, $cmd, @args);
 }
@@ -496,6 +501,11 @@ sub MilightDevice_Attr(@)
   if ($cmd eq 'set' && (($attribName eq 'defaultRampOn') || ($attribName eq 'defaultRampOff')))
   {
     return "defaultRampOn/Off is required as numerical value [0..100]" if ($attribVal !~ /^[0-9]*\.?[0-9]*$/) || (($attribVal < 0) || ($attribVal > 100));
+  }
+  # Default on value loaded by command "defaultState"
+  if ($cmd eq 'set' && ($attribName eq 'defaultState'))
+  {
+    return "defaultState is required as hsv(h,s,v)" if ($attribVal !~ /^(\d{1,3}),(\d{1,3}),(\d{1,3})$/);
   }
 
   return undef;
