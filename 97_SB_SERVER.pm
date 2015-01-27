@@ -32,7 +32,7 @@
 #  CLIPORT          the port for the CLI interface of the server
 #
 # ############################################################################
-# $Id: 97_SB_SERVER.pm beta 20141120 0008 CD (hinrich2001) $
+# $Id: 97_SB_SERVER.pm beta 20141120 0008 CD $
 # CD 0007 documentation update
 # PRESENCE statusRequest requires v7278
 # ############################################################################ 
@@ -594,7 +594,7 @@ sub SB_SERVER_Read( $ ) {
     $buf = $hash->{PARTIAL} . $buf;
 
     $buf = uri_unescape( $buf );
-    Log3( $hash, 1, "SB_SERVER_Read: the buf: $buf" );  # CD TEST level 6 -> 1
+    Log3( $hash, 6, "SB_SERVER_Read: the buf: $buf" );
 
 
     # if we have received multiline commands, they are split by \n
@@ -635,7 +635,7 @@ sub SB_SERVER_Write( $$$ ) {
     my ( $hash, $fn, $msg ) = @_;
     my $name = $hash->{NAME};
 
-    Log3( $hash, 1, "SB_SERVER_Write($name): called with FN:$fn" );  # CD TEST level 4 -> 1
+    Log3( $hash, 4, "SB_SERVER_Write($name): called with FN:$fn" );
 
     if( !defined( $fn ) ) {
 	return( undef );

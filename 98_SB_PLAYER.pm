@@ -1,5 +1,5 @@
-# ##############################################################################
-# $Id: 98_SB_PLAYER.pm beta 20141120 0014 CD (hinrich2001) $
+﻿# ##############################################################################
+# $Id: 98_SB_PLAYER.pm beta 20141120 0018 CD/MM $
 #
 #  FHEM Modue for Squeezebox Players
 #
@@ -102,7 +102,8 @@ sub SB_PLAYER_Initialize( $ ) {
     $hash->{AttrList}  .= "coverartwidth:50,100,200 ";
     # CD 0007
     $hash->{AttrList}  .= "syncVolume ";
-    $hash->{AttrList}  .= "amplifierDelayOff ";         # CD 0012
+    $hash->{AttrList}  .= "amplifierDelayOff ";                     # CD 0012
+    $hash->{AttrList}  .= "updateReadingsOnSet:true,false ";        # CD 0017
     $hash->{AttrList}  .= $readingFnAttributes;
 }
 
@@ -133,11 +134,11 @@ sub SB_PLAYER_Attr( @ ) {
         
         }
     }
-    # CD 0012 start - bei �nderung des Attributes Zustand �berpr�fen
+    # CD 0012 start - bei Änderung des Attributes Zustand überprüfen
     if( $args[ 0 ] eq "amplifier" ) {
         RemoveInternalTimer( "DelayAmplifier:$name");
         InternalTimer( gettimeofday() + 0.01, 
-           "SB_PLAYER_tcb_DelayAmplifier",  # CD 0014 Name ge�ndert
+           "SB_PLAYER_tcb_DelayAmplifier",  # CD 0014 Name geändert
            "DelayAmplifier:$name", 
            0 );
     }
@@ -207,9 +208,9 @@ sub SB_PLAYER_Define( $$ ) {
     # our unique id
     $hash->{FHEMUID} = $uniqueid;
     # do the alarms fade in
-    $hash->{ALARMSFADEIN} = "?";
+    #$hash->{ALARMSFADEIN} = "?";                 # CD 0016 deaktiviert, -> Reading
     # the number of alarms of the player
-    $hash->{ALARMSCOUNT} = 2;
+    $hash->{helper}{ALARMSCOUNT} = 0;             # CD 0016 ALARMSCOUNT nach {helper} verschoben
 
     # for the two step approach
     $modules{SB_PLAYER}{defptr}{$uniqueid} = $hash;
@@ -339,16 +340,16 @@ sub SB_PLAYER_Define( $$ ) {
         $hash->{READINGS}{lastir}{TIME} = $tn; 
     }
 
-    # the id of the alarm we create
-    if( !defined( $hash->{READINGS}{alarmid1}{VAL} ) ) {
-        $hash->{READINGS}{alarmid1}{VAL} = "none";
-        $hash->{READINGS}{alarmid1}{TIME} = $tn; 
-    }
+    # the id of the alarm we create                         # CD 0015 deaktiviert
+#    if( !defined( $hash->{READINGS}{alarmid1}{VAL} ) ) {
+#        $hash->{READINGS}{alarmid1}{VAL} = "none";
+#        $hash->{READINGS}{alarmid1}{TIME} = $tn; 
+#    }
 
-    if( !defined( $hash->{READINGS}{alarmid2}{VAL} ) ) {
-        $hash->{READINGS}{alarmid2}{VAL} = "none";
-        $hash->{READINGS}{alarmid2}{TIME} = $tn; 
-    }
+#    if( !defined( $hash->{READINGS}{alarmid2}{VAL} ) ) {
+#        $hash->{READINGS}{alarmid2}{VAL} = "none";
+#        $hash->{READINGS}{alarmid2}{TIME} = $tn; 
+#    }
 
     # values according to standard
     if( !defined( $hash->{READINGS}{playStatus}{VAL} ) ) {
@@ -443,7 +444,7 @@ sub SB_PLAYER_Define( $$ ) {
 }
 
 # CD 0002 start
-sub SB_PLAYER_tcb_QueryCoverArt($) {    # CD 0014 Name ge�ndert
+sub SB_PLAYER_tcb_QueryCoverArt($) {    # CD 0014 Name geändert
     my($in ) = shift;
     my(undef,$name) = split(':',$in);
     my $hash = $defs{$name};
@@ -453,7 +454,7 @@ sub SB_PLAYER_tcb_QueryCoverArt($) {    # CD 0014 Name ge�ndert
 
     # CD 0005 query cover art for synced players
     if ($hash->{PLAYERMAC} eq $hash->{SYNCMASTER}) {
-        if (defined($hash->{SYNCGROUP}) && ($hash->{SYNCGROUP} ne '?')) {
+        if (defined($hash->{SYNCGROUP}) && ($hash->{SYNCGROUP} ne '?') && ($hash->{SYNCMASTER} ne 'none')) {    # CD 0018 none hinzugefügt
             my @pl=split(",",$hash->{SYNCGROUP});
             foreach (@pl) {
                 IOWrite( $hash, "$_ status - 1 tags:Kc\n" );
@@ -646,15 +647,15 @@ sub SB_PLAYER_Parse( $$ ) {
             IOWrite( $hash, "$hash->{PLAYERMAC} time ?\n" );
             # CD 0002 Coverart anfordern, todo: Zeit variabel
             InternalTimer( gettimeofday() + 10, 
-                    "SB_PLAYER_tcb_QueryCoverArt",  # CD 0014 Name ge�ndert
-                    "QueryCoverArt:$name",          # CD 0014 Name ge�ndert
+                    "SB_PLAYER_tcb_QueryCoverArt",  # CD 0014 Name geändert
+                    "QueryCoverArt:$name",          # CD 0014 Name geändert
                     0 );
-            # CD 0002 zu fr�h, CoverArt ist noch nicht verf�gbar
+            # CD 0002 zu früh, CoverArt ist noch nicht verfügbar
             # SB_PLAYER_CoverArt( $hash );
 
             # CD 0000 start - sync players in same group
             if ($hash->{PLAYERMAC} eq $hash->{SYNCMASTER}) {
-                if (defined($hash->{SYNCGROUP}) && ($hash->{SYNCGROUP} ne '?')) {
+                if (defined($hash->{SYNCGROUP}) && ($hash->{SYNCGROUP} ne '?') && ($hash->{SYNCMASTER} ne 'none')) {        # CD 0018 none hinzugefügt
                     my @pl=split(",",$hash->{SYNCGROUP});
                     foreach (@pl) {
                         #Log 0,"SB_Player to sync: $_";
@@ -769,6 +770,7 @@ sub SB_PLAYER_Parse( $$ ) {
             SB_PLAYER_GetStatus( $hash );
         } elsif( $args[ 0 ] eq "delete" ) {
             $queryMode=0;
+            IOWrite( $hash, "$hash->{PLAYERMAC} alarm playlists 0 200\n" );     # CD 0016 get available elements for alarms
             SB_PLAYER_GetStatus( $hash );
         } elsif( $args[ 0 ] eq "load_done" ) {
             if(defined($hash->{helper}{recallPending})) {
@@ -786,8 +788,8 @@ sub SB_PLAYER_Parse( $$ ) {
         } else {
         }
         # check if this caused going to play, as not send automatically
-        if(!defined($hash->{helper}{lastModeQuery})||($hash->{helper}{lastModeQuery} < gettimeofday()-0.05)) {  # CD 0014 �berfl�ssige Abfragen begrenzen
-            IOWrite( $hash, "$hash->{PLAYERMAC} mode ?\n" ) if(!(defined($hash->{helper}{recallPending})||defined($hash->{helper}{recallPause})||($queryMode==0)));   # CD 0014 if(... hinzugef�gt
+        if(!defined($hash->{helper}{lastModeQuery})||($hash->{helper}{lastModeQuery} < gettimeofday()-0.05)) {  # CD 0014 überflüssige Abfragen begrenzen
+            IOWrite( $hash, "$hash->{PLAYERMAC} mode ?\n" ) if(!(defined($hash->{helper}{recallPending})||defined($hash->{helper}{recallPause})||($queryMode==0)));   # CD 0014 if(... hinzugefügt
             $hash->{helper}{lastModeQuery} = gettimeofday();    # CD 0014
         }   # CD 0014
 
@@ -835,7 +837,7 @@ sub SB_PLAYER_Parse( $$ ) {
             
             SB_PLAYER_Amplifier( $hash );
         } elsif( $args[ 0 ] eq "0" ) {
-            #readingsBulkUpdate( $hash, "presence", "absent" );      # CD 0013 deaktiviert, power sagt nichts �ber presence
+            #readingsBulkUpdate( $hash, "presence", "absent" );      # CD 0013 deaktiviert, power sagt nichts über presence
             readingsBulkUpdate( $hash, "state", "off" );
             readingsBulkUpdate( $hash, "power", "off" );
             SB_PLAYER_Amplifier( $hash );
@@ -868,20 +870,46 @@ sub SB_PLAYER_Parse( $$ ) {
             # the last entry in the array shall contain th id
             my $idstr = $args[ $#args ];
             if( $idstr =~ /^(id:)([0-9a-zA-Z\.]+)/g ) {
-                readingsBulkUpdate( $hash, "alarmid$hash->{LASTALARM}", $2 );
+                #readingsBulkUpdate( $hash, "alarmid$hash->{LASTALARM}", $2 );  # CD 0015 deaktiviert
             } else {
             }
+            IOWrite( $hash, "$hash->{PLAYERMAC} alarm playlists 0 200\n" ) if (!defined($hash->{helper}{alarmPlaylists})); # CD 0015 get available elements for alarms CD 0016 nur wenn nicht vorhanden abfragen
+            IOWrite( $hash, "$hash->{PLAYERMAC} alarms 0 200 tags:all filter:all\n" ); # CD 0015 update alarm list
         } elsif( $args[ 0 ] eq "_cmd" ) {
-            IOWrite( $hash, "$hash->{PLAYERMAC} alarms 0 200 tags:all\n" );
+            #IOWrite( $hash, "$hash->{PLAYERMAC} alarm playlists 0 200\n" ); # CD 0015 get available elements for alarms CD 0016 deaktiviert, nicht nötig
+            IOWrite( $hash, "$hash->{PLAYERMAC} alarms 0 200 tags:all filter:all\n" );  # CD 0015 filter added
         } elsif( $args[ 0 ] eq "update" ) {
-            IOWrite( $hash, "$hash->{PLAYERMAC} alarms 0 200 tags:all\n" );
+            IOWrite( $hash, "$hash->{PLAYERMAC} alarm playlists 0 200\n" ) if (!defined($hash->{helper}{alarmPlaylists})); # CD 0015 get available elements for alarms CD 0016 nur wenn nicht vorhanden abfragen
+            IOWrite( $hash, "$hash->{PLAYERMAC} alarms 0 200 tags:all filter:all\n" );  # CD 0015 filter added
         } elsif( $args[ 0 ] eq "delete" ) {
-            IOWrite( $hash, "$hash->{PLAYERMAC} alarms 0 200 tags:all\n" );
+            if(!defined($hash->{helper}{deleteAllAlarms})) {                    # CD 0015 do not query while deleting all alarms
+                IOWrite( $hash, "$hash->{PLAYERMAC} alarms 0 200 tags:all filter:all\n" );  # CD 0015 filter added
+            }
+        # CD 0015 start
+        # verfügbare Elemente für Alarme, zwischenspeichern für Anzeige
+        } elsif( $args[ 0 ] eq "playlists" ) {
+            delete($hash->{helper}{alarmPlaylists}) if (defined($hash->{helper}{alarmPlaylists}));
+            my @r=split("category:",join(" ",@args));
+            foreach my $a (@r){
+                my $i1=index($a," title:");
+                my $i2=index($a," url:");
+                my $i3=index($a," singleton:");
+                if (($i1!=-1)&&($i2!=-1)&&($i3!=-1)) {
+                    my $url=substr($a,$i2+5,$i3-$i2-5);
+                    $url=substr($a,$i1+7,$i2-$i1-7) if ($url eq "");
+                    my $pn=SB_SERVER_FavoritesName2UID($url);
+                    $hash->{helper}{alarmPlaylists}{$pn}{category}=substr($a,0,$i1);
+                    $hash->{helper}{alarmPlaylists}{$pn}{title}=substr($a,$i1+7,$i2-$i1-7);
+                    $hash->{helper}{alarmPlaylists}{$pn}{url}=$url;
+                }
+            }
+        # CD 0015
         } else {
         }
 
 
     } elsif( $cmd eq "alarms" ) {
+        delete($hash->{helper}{deleteAllAlarms}) if(defined($hash->{helper}{deleteAllAlarms})); # CD 0015
         SB_PLAYER_ParseAlarms( $hash, @args );
 
     } elsif( $cmd eq "showbriefly" ) {
@@ -921,7 +949,7 @@ sub SB_PLAYER_Parse( $$ ) {
                         SB_PLAYER_Amplifier( $hash );
                 } elsif( $args[ 2 ] eq "0" ) {
                         #Log 0,"$name power off";
-                        #readingsBulkUpdate( $hash, "presence", "absent" );       # CD 0013 deaktiviert, power sagt nichts �ber presence
+                        #readingsBulkUpdate( $hash, "presence", "absent" );       # CD 0013 deaktiviert, power sagt nichts über presence
                         readingsBulkUpdate( $hash, "state", "off" );
                         readingsBulkUpdate( $hash, "power", "off" );
                         SB_PLAYER_Amplifier( $hash );
@@ -932,6 +960,24 @@ sub SB_PLAYER_Parse( $$ ) {
                 SB_PLAYER_SetSyncedVolume($hash, -1) if ($args[ 2 ] == 1);
                 IOWrite( $hash, "$hash->{PLAYERMAC} mixer volume ?\n" ) if ($args[ 2 ] == 0);
             # CD 0010 end
+            # CD 0016 start
+            } elsif( $args[ 1 ] eq "alarmTimeoutSeconds" ) {
+                readingsBulkUpdate( $hash, "alarmsTimeout", $args[ 2 ]/60 );
+            } elsif( $args[ 1 ] eq "alarmSnoozeSeconds" ) {
+                readingsBulkUpdate( $hash, "alarmsSnooze", $args[ 2 ]/60 );
+            } elsif( $args[ 1 ] eq "alarmDefaultVolume" ) {
+                readingsBulkUpdate( $hash, "alarmsDefaultVolume", $args[ 2 ]/60 );
+            } elsif( $args[ 1 ] eq "alarmfadeseconds" ) {
+                if($args[ 2 ] eq "1") {
+                    readingsBulkUpdate( $hash, "alarmsFadeIn", "on" );
+                } else {
+                    readingsBulkUpdate( $hash, "alarmsFadeIn", "off" );
+                }
+            # CD 0016 end
+            # CD 0018 start
+            } elsif( $args[ 1 ] eq "syncgroupid" ) {
+                IOWrite( $hash, "$hash->{PLAYERMAC} status 0 500 tags:Kc\n" );
+            # CD 0018 end
             }
         } else {
             readingsBulkUpdate( $hash, "lastunkowncmd", 
@@ -951,7 +997,39 @@ sub SB_PLAYER_Parse( $$ ) {
                 }
             }
         }
-    # CD 0007 end
+        # CD 0007 end
+        # CD 0016 start, von MM übernommen, Namen Readings geändert
+        elsif( $args[ 0 ] eq "alarmsEnabled" ) {
+          if (defined($args[1])) {
+            if( $args[1] eq "1" ) {
+                readingsBulkUpdate( $hash, "alarmsEnabled", "on" );    # CD 0016 Internal durch Reading ersetzt # CD 0017 'yes' durch 'on' ersetzt
+            } else {
+                readingsBulkUpdate( $hash, "alarmsEnabled", "off" );   # CD 0016 Internal durch Reading ersetzt # CD 0017 'no' durch 'off' ersetzt
+            }
+          }
+        }
+
+        elsif( $args[ 0 ] eq "alarmDefaultVolume" ) {
+          if (defined($args[1]) && ($args[1] ne "?")) {         # CD 0016 Rückmeldung auf Anfrage ignorieren
+            #$hash->{ALARMSVOLUME} = $args[1];                  # CD 0016 nicht benötigt
+            readingsBulkUpdate( $hash, "alarmsDefaultVolume", $args[ 1 ] );
+          }
+        }
+
+        elsif( $args[ 0 ] eq "alarmTimeoutSeconds" ) {
+          if (defined($args[1]) && ($args[1] ne "?")) {         # CD 0016 Rückmeldung auf Anfrage ignorieren
+            #$hash->{ALARMSTIMEOUT} = $args[1]/60 . " min";     # CD 0016 nicht benötigt
+            readingsBulkUpdate( $hash, "alarmsTimeout", $args[ 1 ]/60 );
+          }
+        }
+
+        elsif( $args[ 0 ] eq "alarmSnoozeSeconds" ) {
+          if (defined($args[1]) && ($args[1] ne "?")) {         # CD 0016 Rückmeldung auf Anfrage ignorieren
+            #$hash->{ALARMSSNOOZE} = $args[1]/60 . " min";      # CD 0016 nicht benötigt
+            readingsBulkUpdate( $hash, "alarmsSnooze", $args[ 1 ]/60 );
+          }
+        }
+        # CD 0016 end
     # CD 0014 start
     } elsif( $cmd eq "duration" ) {
         readingsBulkUpdate( $hash, "duration", $args[ 0 ] );
@@ -962,6 +1040,12 @@ sub SB_PLAYER_Parse( $$ ) {
     } elsif( $cmd eq "playlist_tracks" ) {
         readingsBulkUpdate( $hash, "playlistTracks", $args[ 0 ] );
     # CD 0014 end
+    # CD 0018 sync Meldungen auswerten, alle anderen Player abfragen
+    } elsif( $cmd eq "sync" ) {
+        foreach my $e ( keys %{$hash->{helper}{SB_PLAYER_SyncMasters}} ) {
+            IOWrite( $hash, $hash->{helper}{SB_PLAYER_SyncMasters}{$e}{MAC}." status 0 500 tags:Kc\n" );
+        }
+    # CD 0018
     } elsif( $cmd eq "NONE" ) {
         # we shall never end up here, as cmd=NONE is used by the server for 
         # autocreate
@@ -1087,19 +1171,35 @@ sub SB_PLAYER_Set( $@ ) {
             "volumeStraight:slider,0,1,100 " . 
             "volumeUp:noArg volumeDown:noArg " . 
             "mute:noArg repeat:off,one,all show statusRequest:noArg " . 
-            "shuffle:on,off next:noArg prev:noArg playlist sleep " . 
-            "alarm1 alarm2 allalarms:enable,disable,statusRequest " . 
-            "cliraw talk sayText " .     # CD 0014 sayText hinzugef�gt
+            "shuffle:off,on,song,album next:noArg prev:noArg playlist sleep " . # CD 0017 song und album hinzugefügt
+            "allalarms:enable,disable,statusRequest,delete,add " .              # CD 0015 alarm1 alarm2 entfernt
+            "alarmsSnooze:slider,0,1,30 alarmsTimeout:slider,0,5,90  alarmsDefaultVolume:slider,0,1,100 alarmsFadeIn:on,off alarmsEnabled:on,off " . # CD 0016, von MM übernommen, Namen geändert
+            "cliraw talk sayText " .     # CD 0014 sayText hinzugefügt
             "unsync:noArg ";
         # add the favorites
-        $res .= $hash->{FAVSET} . ":-," . $hash->{FAVSTR} . " ";    # CD 0014 '-' hinzugef�gt
+        $res .= $hash->{FAVSET} . ":-," . $hash->{FAVSTR} . " ";    # CD 0014 '-' hinzugefügt
         # add the syncmasters
         $res .= "sync:" . $hash->{SYNCMASTERS} . " ";
         # add the playlists
-        $res .= "playlists:-," . $hash->{SERVERPLAYLISTS} . " ";    # CD 0014 '-' hinzugef�gt
+        $res .= "playlists:-," . $hash->{SERVERPLAYLISTS} . " ";    # CD 0014 '-' hinzugefügt
+        # CD 0016 start {ALARMSCOUNT} verschieben nach reload
+        if (defined($hash->{ALARMSCOUNT})) {
+            $hash->{helper}{ALARMSCOUNT}=$hash->{ALARMSCOUNT};
+            delete($hash->{ALARMSCOUNT});
+        }
+        # CD 0016 end
+        # CD 0015 - add the alarms
+        if (defined($hash->{helper}{ALARMSCOUNT})&&($hash->{helper}{ALARMSCOUNT}>0)) {  # CD 0016 ALARMSCOUNT nach {helper} verschoben
+            for(my $i=1;$i<=$hash->{helper}{ALARMSCOUNT};$i++) {                        # CD 0016 ALARMSCOUNT nach {helper} verschoben
+                $res .="alarm$i ";
+            }
+        }
         return( $res );
     }
 
+    my $updateReadingsOnSet=AttrVal($name, "updateReadingsOnSet", false);           # CD 0017
+    my $donotnotify=AttrVal($name, "donotnotify", true);                           # CD 0017
+    
     # as we have some other command, we need to turn on the server
     #if( AttrVal( $name, "serverautoon", "true" ) eq "true" ) {
        #SB_PLAYER_ServerTurnOn( $hash );
@@ -1216,10 +1316,13 @@ sub SB_PLAYER_Set( $@ ) {
         }
         if( $arg[ 0 ] eq "off" ) {
             IOWrite( $hash, "$hash->{PLAYERMAC} playlist repeat 0\n" );
+            readingsSingleUpdate( $hash, "repeat", "off", $donotnotify ) if($updateReadingsOnSet);  # CD 0017
         } elsif( $arg[ 0 ] eq "one" ) {
             IOWrite( $hash, "$hash->{PLAYERMAC} playlist repeat 1\n" );
+            readingsSingleUpdate( $hash, "repeat", "one", $donotnotify ) if($updateReadingsOnSet);  # CD 0017
         } elsif( $arg[ 0 ] eq "all" ) {
             IOWrite( $hash, "$hash->{PLAYERMAC} playlist repeat 2\n" );
+            readingsSingleUpdate( $hash, "repeat", "all", $donotnotify ) if($updateReadingsOnSet);  # CD 0017
         } else {
             my $msg = "SB_PLAYER_Set: unknown argument for repeat given.";
             Log3( $hash, 3, $msg );
@@ -1235,8 +1338,15 @@ sub SB_PLAYER_Set( $@ ) {
         }
         if( $arg[ 0 ] eq "off" ) {
             IOWrite( $hash, "$hash->{PLAYERMAC} playlist shuffle 0\n" );
-        } elsif( $arg[ 0 ] eq "on" ) {
+            readingsSingleUpdate( $hash, "shuffle", "off", $donotnotify ) if($updateReadingsOnSet);     # CD 0017
+        } elsif(( $arg[ 0 ] eq "on" ) || ($arg[ 0 ] eq "song" )) {                                      # CD 0017 'song' hinzugefügt
             IOWrite( $hash, "$hash->{PLAYERMAC} playlist shuffle 1\n" );
+            readingsSingleUpdate( $hash, "shuffle", "song", $donotnotify ) if($updateReadingsOnSet);    # CD 0017
+        # CD 0017 start
+        } elsif( $arg[ 0 ] eq "album" ) {
+            IOWrite( $hash, "$hash->{PLAYERMAC} playlist shuffle 2\n" );
+            readingsSingleUpdate( $hash, "shuffle", "album", $donotnotify ) if($updateReadingsOnSet);
+        # CD 0017 end
         } else {
             my $msg = "SB_PLAYER_Set: unknown argument for shuffle given.";
             Log3( $hash, 3, $msg );
@@ -1260,7 +1370,7 @@ sub SB_PLAYER_Set( $@ ) {
     } elsif( ( $cmd eq "talk" ) || 
              ( $cmd eq "TALK" ) || 
              ( $cmd eq "talk" ) ||
-             ( lc($cmd) eq "saytext" ) ) {  # CD 0014 hinzugef�gt
+             ( lc($cmd) eq "saytext" ) ) {  # CD 0014 hinzugefügt
         my $outstr = join( "+", @arg );
         $outstr = uri_escape( $outstr );
         $outstr = AttrVal( $name, "ttslink", "none" )  
@@ -1290,7 +1400,8 @@ sub SB_PLAYER_Set( $@ ) {
         }
         # CD 0014 start
         if (@arg>1) {
-            my $outstr = uri_escape(join( " ", @arg[1..$#arg]));
+            my $outstr = uri_escape(decode('utf-8',join( " ", @arg[1..$#arg])));        # CD 0017
+
             Log3( $hash, 5, "SB_PLAYER_Set($name): playlists command = $arg[ 0 ] param = $outstr" );
 
             if( $arg[ 0 ] eq "track" ) {
@@ -1322,15 +1433,61 @@ sub SB_PLAYER_Set( $@ ) {
 
     } elsif( $cmd eq "allalarms" ) {
         if( $arg[ 0 ] eq "enable" ) {
-            IOWrite( $hash, "$hash->{PLAYERMAC} alarm enableall\n" );
+            IOWrite( $hash, "$hash->{PLAYERMAC} playerpref alarmsEnabled 1\n" );        # MM 0016
+            readingsSingleUpdate( $hash, "alarmsEnabled", "on", $donotnotify ) if($updateReadingsOnSet);  # CD 0017
         } elsif( $arg[ 0 ] eq "disable" ) {
-            IOWrite( $hash, "$hash->{PLAYERMAC} alarm disableall\n" );
+            IOWrite( $hash, "$hash->{PLAYERMAC} playerpref alarmsEnabled 0\n" );        # MM 0016
+            readingsSingleUpdate( $hash, "alarmsEnabled", "off", $donotnotify ) if($updateReadingsOnSet);  # CD 0017
         } elsif( $arg[ 0 ] eq "statusRequest" ) {
-            IOWrite( $hash, "$hash->{PLAYERMAC} alarms 0 200 tags:all\n" );
+            IOWrite( $hash, "$hash->{PLAYERMAC} alarms 0 200 tags:all filter:all\n" );  # CD 0015 filter added
+            # CD 0016 start
+            IOWrite( $hash, "$hash->{PLAYERMAC} playerpref alarmsEnabled ?\n" );
+            IOWrite( $hash, "$hash->{PLAYERMAC} playerpref alarmDefaultVolume ?\n" );
+            IOWrite( $hash, "$hash->{PLAYERMAC} playerpref alarmTimeoutSeconds ?\n" );
+            IOWrite( $hash, "$hash->{PLAYERMAC} playerpref alarmSnoozeSeconds ?\n" );
+            # CD 0016 end
+        # CD 0015 start
+        } elsif( $arg[ 0 ] eq "delete" ) {
+            $hash->{helper}{deleteAllAlarms}=1;
+            for(my $i=1;$i<=$hash->{helper}{ALARMSCOUNT};$i++) {    # CD 0016 ALARMSCOUNT nach {helper} verschoben
+                IOWrite( $hash, "$hash->{PLAYERMAC} alarm delete id:". ReadingsVal($name,"alarm".$i."_id","0"). "\n" );
+            }
+            IOWrite( $hash, "$hash->{PLAYERMAC} alarms 0 200 tags:all filter:all\n" );  # CD 0015 filter added
+        } elsif( $arg[ 0 ] eq "add" ) {
+            $arg[ 0 ]="set";
+            SB_PLAYER_Alarm( $hash, 0, @arg );
+        # CD 0015 end
         } else {
         }
-
-
+    # CD 0016 start, von MM übernommen, Namen geändert
+    } elsif( index( $cmd, "alarms" ) != -1 ) {
+        if($cmd eq "alarmsSnooze") {
+            IOWrite( $hash, "$hash->{PLAYERMAC} playerpref alarmSnoozeSeconds ". $arg[0]*60 ."\n" );
+            readingsSingleUpdate( $hash, "alarmsSnooze", $arg[ 0 ], $donotnotify ) if($updateReadingsOnSet);   # CD 0017
+        } elsif($cmd eq "alarmsTimeout") {
+            IOWrite( $hash, "$hash->{PLAYERMAC} playerpref alarmTimeoutSeconds ". $arg[0]*60 ."\n" );
+            readingsSingleUpdate( $hash, "alarmsTimeout", $arg[ 0 ], $donotnotify ) if($updateReadingsOnSet);  # CD 0017
+        } elsif($cmd eq "alarmsDefaultVolume") {
+            IOWrite( $hash, "$hash->{PLAYERMAC} playerpref alarmDefaultVolume ". $arg[0] ."\n" );
+            readingsSingleUpdate( $hash, "alarmsDefaultVolume", $arg[ 0 ], $donotnotify ) if($updateReadingsOnSet);  # CD 0017
+        } elsif($cmd eq "alarmsFadeIn") {
+            if($arg[0] eq 'on') {
+                IOWrite( $hash, "$hash->{PLAYERMAC} playerpref alarmfadeseconds 1\n" );
+                readingsSingleUpdate( $hash, "alarmsFadeIn", "on", $donotnotify ) if($updateReadingsOnSet);  # CD 0017
+            } else {
+                IOWrite( $hash, "$hash->{PLAYERMAC} playerpref alarmfadeseconds 0\n" );
+                readingsSingleUpdate( $hash, "alarmsFadeIn", "off", $donotnotify ) if($updateReadingsOnSet);  # CD 0017
+            }
+        } elsif($cmd eq "alarmsEnabled") {
+            if( $arg[ 0 ] eq "on" ) {
+                IOWrite( $hash, "$hash->{PLAYERMAC} playerpref alarmsEnabled 1\n" );
+                readingsSingleUpdate( $hash, "alarmsEnabled", "on", $donotnotify ) if($updateReadingsOnSet);  # CD 0017
+            } else {
+                IOWrite( $hash, "$hash->{PLAYERMAC} playerpref alarmsEnabled 0\n" );
+                readingsSingleUpdate( $hash, "alarmsEnabled", "off", $donotnotify ) if($updateReadingsOnSet);  # CD 0017
+            }
+        }
+    # CD 0016
     } elsif( index( $cmd, "alarm" ) != -1 ) {
         my $alarmno = int( substr( $cmd, 5 ) ) + 0;
         Log3( $hash, 5, "SB_PLAYER_Set: $name: alarmid:$alarmno" );
@@ -1369,22 +1526,37 @@ sub SB_PLAYER_Set( $@ ) {
         SB_PLAYER_GetStatus( $hash );
 
     } elsif( $cmd eq "sync" ) {
-        if( @arg == 1 ) {
-            if( defined( $hash->{helper}{SB_PLAYER_SyncMasters}{$arg[0]}{MAC} ) ) {
-                IOWrite( $hash, "$hash->{PLAYERMAC} sync " . 
-                         "$hash->{helper}{SB_PLAYER_SyncMasters}{$arg[0]}{MAC}\n" );
-                SB_PLAYER_GetStatus( $hash );
-            } else {
-                my $msg = "SB_PLAYER_Set: no arguments for sync given.";
-                Log3( $hash, 3, $msg );
-                return( $msg );
-            }
+        # CD 0018 wenn der Player bereits in einer Gruppe ist und 'new' ist vorhanden, wird der Player zuerst aus der Gruppe entfernt
+        if(( @arg == 2) && ($arg[1] eq "new") && ($hash->{SYNCED} eq 'yes')) {
+            IOWrite( $hash, "$hash->{PLAYERMAC} sync -\n" );
         }
-
+        # CD 0018 end
+        # CD 0018 Synchronisation mehrerer Player 
+        if(( @arg == 1 ) || ( @arg == 2)) {
+            my $msg;
+            my $dev;
+            my @dvs=();
+            my $doGetStatus=0;
+            @dvs=split(",",$arg[0]);
+            foreach (@dvs) {
+                my $dev=$_;
+                # CD 0018 end
+                if( defined( $hash->{helper}{SB_PLAYER_SyncMasters}{$dev}{MAC} ) ) {
+                    IOWrite( $hash, "$hash->{PLAYERMAC} sync " . 
+                             "$hash->{helper}{SB_PLAYER_SyncMasters}{$dev}{MAC}\n" );
+                    $doGetStatus=1;
+                } else {
+                    my $msg = "SB_PLAYER_Set: no MAC for player ".$dev.".";
+                    Log3( $hash, 3, $msg );
+                    #return( $msg );        # CD 0018 wenn keine MAC vorhanden weitermachen
+                }
+            }   # CD 0018
+            SB_PLAYER_GetStatus( $hash ) if($doGetStatus==1);
+        }
+        # CD 0018 end
     } elsif( $cmd eq "unsync" ) {
         IOWrite( $hash, "$hash->{PLAYERMAC} sync -\n" );
         SB_PLAYER_GetStatus( $hash );
-        
     } elsif( $cmd eq "playlists" ) {
         if( @arg == 1 ) {
             my $msg;
@@ -1426,7 +1598,7 @@ sub SB_PLAYER_Recall($) {
     my ( $hash ) = @_;
     my $name = $hash->{NAME};
 
-    # wurde �berhaupt etwas gespeichert ?
+    # wurde überhaupt etwas gespeichert ?
     if(defined($hash->{helper}{savedPlayerState})) {
         IOWrite( $hash, "$hash->{PLAYERMAC} playlist shuffle 0\n");
         if (defined($hash->{helper}{savedPlayerState}{playlistIds})) {
@@ -1486,9 +1658,9 @@ sub SB_PLAYER_Save($) {
     if(ReadingsVal($name,"playlistTracks",1)<=1) {
         IOWrite( $hash, "$hash->{PLAYERMAC} playlist save fhem_$hash->{NAME} silent:1\n" );
     } else {
-        # mehr als 1 Track, auf shuffle pr�fen (playlist resume funktioniert nicht richtig wenn shuffle nicht auf off steht)
+        # mehr als 1 Track, auf shuffle prüfen (playlist resume funktioniert nicht richtig wenn shuffle nicht auf off steht)
         # bei negativen Ids (Remote-Streams) und shuffle geht die vorherige Reihenfolge verloren, kein Workaround bekannt
-        # es werden maximal 500 Ids gespeichert, bei mehr als 500 Eintr�gen in der Playlists geht die vorherige Reihenfolge verloren (zu �ndern)
+        # es werden maximal 500 Ids gespeichert, bei mehr als 500 Einträgen in der Playlists geht die vorherige Reihenfolge verloren (zu ändern)
         if (    (ReadingsVal($name,"shuffle","?") eq "off") ||
                 (!defined($hash->{helper}{playlistIds})) ||
                 ($hash->{helper}{playlistIds}=~ /-/) ||
@@ -1504,21 +1676,24 @@ sub SB_PLAYER_Save($) {
 # ----------------------------------------------------------------------------
 #  set Alarms of the Player
 # ----------------------------------------------------------------------------
+# CD 0015 angepasst für größere Anzahl an Alarmen
 sub SB_PLAYER_Alarm( $$@ ) {
     my ( $hash, $n, @arg ) = @_;
 
     my $name = $hash->{NAME};
 
-    if( ( $n != 1 ) && ( $n != 2 ) ) {
-        Log3( $hash, 1, "SB_PLAYER_Alarm: $name: wrong ID given. Must be 1|2" );
-        return;
-    }   
+    # CD 0015 deaktiviert
+    #if( ( $n != 1 ) && ( $n != 2 ) ) {
+    #    Log3( $hash, 1, "SB_PLAYER_Alarm: $name: wrong ID given. Must be 1|2" );
+    #    return;
+    #}   
 
-    my $id = ReadingsVal( "$name", "alarmid$n", "none" );
+    my $id = ReadingsVal( "$name", "alarm".$n."_id", "none" );  # CD 0015 angepasst
+    my $updateReadingsOnSet=AttrVal($name, "updateReadingsOnSet", false);          # CD 0017
+    my $donotnotify=AttrVal($name, "donotnotify", true);                           # CD 0017
 
     Log3( $hash, 5, "SB_PLAYER_Alarm: $name: ID:$id, N:$n" );
     my $cmdstr = "";
-
     if( $arg[ 0 ] eq "set" ) {
         # set <name> alarm set 0..6 hh:mm:ss playlist
         if( ( @arg != 4 ) && ( @arg != 3 ) ) {
@@ -1529,13 +1704,14 @@ sub SB_PLAYER_Alarm( $$@ ) {
         
         if( $id ne "none" ) {
             IOWrite( $hash, "$hash->{PLAYERMAC} alarm delete $id\n" );
-            readingsSingleUpdate( $hash, "alarmid$n", "none", 0 );
+            # readingsSingleUpdate( $hash, "alarmid$n", "none", 0 );        # CD 0015 deaktiviert
         }
         
-        my $dow = $arg[ 1 ];
-        
+        my $dow = SB_PLAYER_CheckWeekdays($arg[ 1 ]);                       # CD 0016 hinzugefügt
+      
         # split the time string up
         my @buf = split( ":", $arg[ 2 ] );
+        $buf[ 2 ] = 0 if( scalar( @buf ) == 2 );                            # CD 0016, von MM übernommen, geändert
         if( scalar( @buf ) != 3 ) {
             my $msg = "SB_PLAYER_Set: please use hh:mm:ss for alarm time.";
             Log3( $hash, 3, $msg );
@@ -1545,7 +1721,18 @@ sub SB_PLAYER_Alarm( $$@ ) {
         
         $cmdstr = "$hash->{PLAYERMAC} alarm add dow:$dow repeat:0 enabled:1"; 
         if( defined( $arg[ 3 ] ) ) {
-            $cmdstr .= " playlist:" . $arg[ 3 ];
+            # CD 0015 start
+            my $url=join( " ", @arg[3..$#arg]);
+            if (defined($hash->{helper}{alarmPlaylists})) {
+                foreach my $e ( keys %{$hash->{helper}{alarmPlaylists}} ) {
+                    if($url eq $hash->{helper}{alarmPlaylists}{$e}{title}) {
+                        $url=$hash->{helper}{alarmPlaylists}{$e}{url};
+                        last;
+                    }
+                }
+            }
+            # CD 0015 end
+            $cmdstr .= " playlist:" . uri_escape($url);   # CD 0015 uri_escape und join hinzugefügt
         }
         $cmdstr .= " time:$secs\n";
 
@@ -1553,18 +1740,20 @@ sub SB_PLAYER_Alarm( $$@ ) {
 
         $hash->{LASTALARM} = $n;
 
-    } elsif( $arg[ 0 ] eq "enable" ) {
+    } elsif(( $arg[ 0 ] eq "enable" )||( $arg[ 0 ] eq "on" )) {     # CD 0015 'on' hinzugefügt
         if( $id ne "none" ) {
             $cmdstr = "$hash->{PLAYERMAC} alarm update id:$id ";
             $cmdstr .= "enabled:1\n";
             IOWrite( $hash, $cmdstr );
+            readingsSingleUpdate( $hash, "alarm".$n."_state", "on", $donotnotify ) if($updateReadingsOnSet);  # CD 0017
         }
 
-    } elsif( $arg[ 0 ] eq "disable" ) {
+    } elsif(( $arg[ 0 ] eq "disable" )||( $arg[ 0 ] eq "off" )) {   # CD 0015 'off' hinzugefügt
         if( $id ne "none" ) {
             $cmdstr = "$hash->{PLAYERMAC} alarm update id:$id ";
             $cmdstr .= "enabled:0\n";
             IOWrite( $hash, $cmdstr );
+            readingsSingleUpdate( $hash, "alarm".$n."_state", "off", $donotnotify ) if($updateReadingsOnSet);  # CD 0017
         }
 
     } elsif( $arg[ 0 ] eq "volume" ) {
@@ -1572,17 +1761,120 @@ sub SB_PLAYER_Alarm( $$@ ) {
             $cmdstr = "$hash->{PLAYERMAC} alarm update id:$id ";
             $cmdstr .= "volume:" . $arg[ 1 ] . "\n";
             IOWrite( $hash, $cmdstr );
+            readingsSingleUpdate( $hash, "alarm".$n."_volume", $arg[ 1 ], $donotnotify ) if($updateReadingsOnSet);  # CD 0017
         }
+    # CD 0015 start
+    } elsif( $arg[ 0 ] eq "sound" ) {
+        if( $id ne "none" ) {
+            if( defined($arg[ 1 ]) ) {
+                $cmdstr = "$hash->{PLAYERMAC} alarm update id:$id ";
+                my $url=join( " ", @arg[1..$#arg]);
+                readingsSingleUpdate( $hash, "alarm".$n."_sound", $url, $donotnotify ) if($updateReadingsOnSet);  # CD 0017
+                if (defined($hash->{helper}{alarmPlaylists})) {
+                    foreach my $e ( keys %{$hash->{helper}{alarmPlaylists}} ) {
+                        if($url eq $hash->{helper}{alarmPlaylists}{$e}{title}) {
+                            $url=$hash->{helper}{alarmPlaylists}{$e}{url};
+                            last;
+                        }
+                    }
+                }
+                $cmdstr .= " playlist:" . uri_escape(decode('utf-8',$url));         # CD 0017 decode hinzugefügt
+                IOWrite( $hash, $cmdstr );                                          # CD 0017 reaktiviert
+            } else {
+                my $msg = "SB_PLAYER_Set: alarm, no value for sound.";
+                Log3( $hash, 3, $msg );
+                return( $msg );
+            }
+        }
+    } elsif( $arg[ 0 ] eq "repeat" ) {
+        if( $id ne "none" ) {
+            if( defined($arg[ 1 ]) ) {
+                $cmdstr = "$hash->{PLAYERMAC} alarm update id:$id ";
+                if(($arg[ 1 ] eq "1")||($arg[ 1 ] eq "on")||($arg[ 1 ] eq "yes")) {
+                    $cmdstr .= "repeat:1\n";
+                    readingsSingleUpdate( $hash, "alarm".$n."_repeat", "on", $donotnotify ) if($updateReadingsOnSet);  # CD 0017
+                } else {
+                    $cmdstr .= "repeat:0\n";
+                    readingsSingleUpdate( $hash, "alarm".$n."_repeat", "off", $donotnotify ) if($updateReadingsOnSet);  # CD 0017
+                }
+                IOWrite( $hash, $cmdstr );
+            } else {
+                my $msg = "SB_PLAYER_Set: alarm, no value for repeat.";
+                Log3( $hash, 3, $msg );
+                return( $msg );
+            }
+        } 
+    } elsif( $arg[ 0 ] eq "wdays" ) {
+        if( $id ne "none" ) {
+            if( defined($arg[ 1 ]) ) {
+                $cmdstr = "$hash->{PLAYERMAC} alarm update id:$id ";
+                my $dow=SB_PLAYER_CheckWeekdays(join( "", @arg[1..$#arg]));     # CD 0017
+                $cmdstr .= "dow:" . $dow . "\n";                                # CD 0016 SB_PLAYER_CheckWeekdays verwenden
+                IOWrite( $hash, $cmdstr );
+                # CD 0017 start
+                if($updateReadingsOnSet) {
+                    my $rdaystr="";
+                    if ($dow ne "") {
+                        $rdaystr = "Mo" if( index( $dow, "1" ) != -1 );
+                        $rdaystr .= " Tu" if( index( $dow, "2" ) != -1 );
+                        $rdaystr .= " We" if( index( $dow, "3" ) != -1 );
+                        $rdaystr .= " Th" if( index( $dow, "4" ) != -1 );
+                        $rdaystr .= " Fr" if( index( $dow, "5" ) != -1 );
+                        $rdaystr .= " Sa" if( index( $dow, "6" ) != -1 );
+                        $rdaystr .= " Su" if( index( $dow, "0" ) != -1 );
+                    } else {
+                        $rdaystr = "none";
+                    }
+                    $rdaystr =~ s/^\s+|\s+$//g;
+                    readingsSingleUpdate( $hash, "alarm".$n."_wdays", $rdaystr, $donotnotify );
+                }
+                # CD 0017 end
+            } else {
+                my $msg = "SB_PLAYER_Set: no weekdays specified for alarm.";
+                Log3( $hash, 3, $msg );
+                return( $msg );
+            }
+        }
+    } elsif( $arg[ 0 ] eq "time" ) {
+        if( $id ne "none" ) {
+            # split the time string up
+            if( !defined($arg[ 1 ]) ) {
+                my $msg = "SB_PLAYER_Set: no alarm time given.";
+                Log3( $hash, 3, $msg );
+                return( $msg );
+            }
+            my @buf = split( ":", $arg[ 1 ] );
+            $buf[ 2 ] = 0 if( scalar( @buf ) == 2 );                            # CD 0016, von MM übernommen, geändert
+            if( scalar( @buf ) != 3 ) {
+                my $msg = "SB_PLAYER_Set: please use hh:mm:ss for alarm time.";
+                Log3( $hash, 3, $msg );
+                return( $msg );
+            }             
+            my $secs = ( $buf[ 0 ] * 3600 ) + ( $buf[ 1 ] * 60 ) + $buf[ 2 ];
 
+            $cmdstr = "$hash->{PLAYERMAC} alarm update id:$id ";
+            $cmdstr .= "time:" . $secs . "\n";
+            IOWrite( $hash, $cmdstr );
+            # CD 0017 start
+            if($updateReadingsOnSet) {
+                my $buf = sprintf( "%02d:%02d:%02d", 
+                                   int( scalar( $secs ) / 3600 ),
+                                   int( ( $secs % 3600 ) / 60 ),
+                                   int( $secs % 60 ) );
+                readingsSingleUpdate( $hash, "alarm".$n."_time", $buf, $donotnotify );
+            }
+            # CD 0017 end
+        }
+    # CD 0015 end
     } elsif( $arg[ 0 ] eq "delete" ) {
         if( $id ne "none" ) {
             $cmdstr = "$hash->{PLAYERMAC} alarm delete id:$id\n";
             IOWrite( $hash, $cmdstr );
-            readingsSingleUpdate( $hash, "alarmid$n", "none", 1 );
+            # readingsSingleUpdate( $hash, "alarmid$n", "none", 1 );    # CD 0015 deaktiviert
         }
 
     } else { 
-        my $msg = "SB_PLAYER_Set: unkown argument for alarm given.";
+        my $msg = "SB_PLAYER_Set: unkown argument ".$arg[ 0 ]." for alarm given.";
         Log3( $hash, 3, $msg );
         return( $msg );
     }
@@ -1590,6 +1882,51 @@ sub SB_PLAYER_Alarm( $$@ ) {
     return( undef );
 }
 
+# CD 0016, neu, von MM übernommen
+# ----------------------------------------------------------------------------
+#  Check weekdays string
+# ----------------------------------------------------------------------------
+sub SB_PLAYER_CheckWeekdays( $ ) {
+    my ($wdayargs) = @_;
+    my $weekdays = '';
+    if(index($wdayargs,"Mo") != -1 || index($wdayargs,"1") != -1)
+    {
+        $weekdays.='1,';
+    }
+    if(index($wdayargs,"Tu") != -1 || index($wdayargs,"Di") != -1 || index($wdayargs,"2") != -1)
+    {
+        $weekdays.='2,';
+    }
+    if(index($wdayargs,"We") != -1 || index($wdayargs,"Mi") != -1 || index($wdayargs,"3") != -1)
+    {
+        $weekdays.='3,';
+    }
+    if(index($wdayargs,"Th") != -1 || index($wdayargs,"Do") != -1 || index($wdayargs,"4") != -1)
+    {
+        $weekdays.='4,';
+    }
+    if(index($wdayargs,"Fr") != -1 || index($wdayargs,"5") != -1)
+    {
+        $weekdays.='5,';
+    }
+    if(index($wdayargs,"Sa") != -1 || index($wdayargs,"6") != -1)
+    {
+        $weekdays.='6,';
+    }
+    if(index($wdayargs,"Su") != -1 || index($wdayargs,"So") != -1 || index($wdayargs,"0") != -1)
+    {
+        $weekdays.='0';
+    }
+    if(index($wdayargs,"all") != -1 || index($wdayargs,"daily") != -1 || index($wdayargs,"7") != -1)
+    {
+        $weekdays='0,1,2,3,4,5,6';
+    }
+    if(index($wdayargs,"none") != -1) # || index($wdayargs,"once") != -1)  # CD 0016 once funktioniert so nicht, muss über repeat gemacht werden
+    {
+        $weekdays='7';
+    }
+    return $weekdays;
+}
 
 # ----------------------------------------------------------------------------
 #  Status update - just internal use and invoked by the timer
@@ -1613,7 +1950,14 @@ sub SB_PLAYER_GetStatus( $ ) {
         IOWrite( $hash, "$hash->{PLAYERMAC} playlist url ?\n" );
         IOWrite( $hash, "$hash->{PLAYERMAC} remote ?\n" );
         IOWrite( $hash, "$hash->{PLAYERMAC} status 0 500 tags:Kc\n" );
-        IOWrite( $hash, "$hash->{PLAYERMAC} alarms 0 200 tags:all\n" );
+        IOWrite( $hash, "$hash->{PLAYERMAC} alarm playlists 0 200\n" ) if (!defined($hash->{helper}{alarmPlaylists}));  # CD 0016 get available elements for alarms before querying the alarms
+        IOWrite( $hash, "$hash->{PLAYERMAC} alarms 0 200 tags:all filter:all\n" );  # CD 0015 filter added
+        # MM 0016 start
+        IOWrite( $hash, "$hash->{PLAYERMAC} playerpref alarmsEnabled ?\n" );
+        IOWrite( $hash, "$hash->{PLAYERMAC} playerpref alarmDefaultVolume ?\n" );
+        IOWrite( $hash, "$hash->{PLAYERMAC} playerpref alarmTimeoutSeconds ?\n" );
+        IOWrite( $hash, "$hash->{PLAYERMAC} playerpref alarmSnoozeSeconds ?\n" );
+        # MM 0016 end
         # CD 0007
         IOWrite( $hash, "$hash->{PLAYERMAC} playerpref syncVolume ?\n" );
         # CD 0009
@@ -1688,6 +2032,7 @@ sub SB_PLAYER_RecBroadcast( $$@ ) {
             #readingsSingleUpdate( $hash, "state", "on", 1 );   # CD 0011 ob der Player eingeschaltet ist, ist hier noch nicht bekannt, SB_PLAYER_GetStatus abwarten 
             #readingsSingleUpdate( $hash, "power", "on", 1 );   # CD 0011 ob der Player eingeschaltet ist, ist hier noch nicht bekannt, SB_PLAYER_GetStatus abwarten 
             # do and update of the status
+            RemoveInternalTimer( $hash );   # CD 0016
             InternalTimer( gettimeofday() + 10, 
                            "SB_PLAYER_GetStatus", 
                            $hash, 
@@ -1703,15 +2048,21 @@ sub SB_PLAYER_RecBroadcast( $$@ ) {
             # format: ADD IODEVname ID shortentry
             $hash->{helper}{SB_PLAYER_Favs}{$args[3]}{ID} = $args[ 2 ];
             if( $hash->{FAVSTR} eq "" ) {
-                $hash->{FAVSTR} = $args[ 3 ];
+                $hash->{FAVSTR} = $args[ 3 ];   # CD Test für Leerzeichen join("&nbsp;",@args[ 4..$#args ]);
             } else {
-                $hash->{FAVSTR} .= "," . $args[ 3 ];
+                $hash->{FAVSTR} .= "," . $args[ 3 ];    # CD Test für Leerzeichen join("&nbsp;",@args[ 4..$#args ]);
             }
-
+            # CD 0016 start, provisorisch um alarmPlaylists zu aktualisieren, TODO: muss von 97_SB_SERVER kommen
+            RemoveInternalTimer( $hash );   # CD 0016
+            InternalTimer( gettimeofday() + 3, 
+                           "SB_PLAYER_GetStatus", 
+                           $hash, 
+                           0 );
+            #end
         } elsif( $args[ 0 ] eq "FLUSH" ) {
             undef( %{$hash->{helper}{SB_PLAYER_Favs}} );
             $hash->{FAVSTR} = "";
-
+            delete($hash->{helper}{alarmPlaylists}) if (defined($hash->{helper}{alarmPlaylists}));      # CD 0016
         } else {
         }
 
@@ -1750,10 +2101,17 @@ sub SB_PLAYER_RecBroadcast( $$@ ) {
                     $hash->{SERVERPLAYLISTS} .= "," . $args[ 3 ];
                 }
             }   # CD 0014
+            # CD 0016 start, provisorisch um alarmPlaylists zu aktualisieren, TODO: muss von 97_SB_SERVER kommen
+            RemoveInternalTimer( $hash );   # CD 0016
+            InternalTimer( gettimeofday() + 3, 
+                           "SB_PLAYER_GetStatus", 
+                           $hash, 
+                           0 );
+            #end
         } elsif( $args[ 0 ] eq "FLUSH" ) {
             undef( %{$hash->{helper}{SB_PLAYER_Playlists}} );
             $hash->{SERVERPLAYLISTS} = "";
-
+            delete($hash->{helper}{alarmPlaylists}) if (defined($hash->{helper}{alarmPlaylists}));      # CD 0016
         } else {
         }
 
@@ -1767,90 +2125,84 @@ sub SB_PLAYER_RecBroadcast( $$@ ) {
 # ----------------------------------------------------------------------------
 #  parse the return on the alarms status
 # ----------------------------------------------------------------------------
+# wird von SB_PLAYER_Parse aufgerufen, readingsBeginUpdate ist aktiv
 sub SB_PLAYER_ParseAlarms( $@ ) {
     my ( $hash, @data ) = @_;
 
     my $name = $hash->{NAME};
 
-    if( $data[ 0 ] =~ /^([0-9])*/ ) {
-        shift( @data );
+    # CD 0016 start {ALARMSCOUNT} verschieben nach reload
+    if (defined($hash->{ALARMSCOUNT})) {
+        $hash->{helper}{ALARMSCOUNT}=$hash->{ALARMSCOUNT};
+        delete($hash->{ALARMSCOUNT});
     }
-
-    if( $data[ 0 ] =~ /^([0-9])*/ ) {
-        shift( @data );
-    }
-
-    if( $data[ 0 ] =~ /^(fade:)([0|1]?)/ ) {
-        shift( @data );
-        if( $2 eq "0" ) {
-            $hash->{ALARMSFADEIN} = "yes";
-        } else {
-            $hash->{ALARMSFADEIN} = "no";
-        }
-
-    } 
+    # CD 0016
+    my $lastAlarmCount=$hash->{helper}{ALARMSCOUNT};    # CD 0016 ALARMSCOUNT nach {helper} verschoben
     
-    if( $data[ 0 ] =~ /^(count:)([0-9].*)/ ) {
+    if( $data[ 0 ] =~ /^([0-9])*/ ) {
         shift( @data );
-        $hash->{ALARMSCOUNT} = scalar( $2 );
     }
 
-    # ok, seems alarm commands are received fine, so delete exiting readings
-    # CD 0002 deletereadings in deletereading ge�ndert
-    fhem( "deletereading $name ALARM__.*" );
+    if( $data[ 0 ] =~ /^([0-9])*/ ) {
+        shift( @data );
+    }
 
-    my $alarmname = "";
-    my $alarmdata = "";
+    fhem( "deletereading $name alarmid.*" );        # CD 0015 alte readings entfernen
 
+    my $alarmcounter=0; # CD 0015
+    
     foreach( @data ) {
-
         if( $_ =~ /^(id:)(\S{8})/ ) {
             # id is 8 non-white-space characters
             # example: id:0ac7f3a2 
-            $alarmname = "ALARM__" . $2;
-            $alarmdata = "";
+            $alarmcounter+=1;                # CD 0015
+            readingsBulkUpdate( $hash, "alarm".$alarmcounter."_id", $2 );    # CD 0015
             next;
-        } elsif( $_ =~ /^(dow:)([0-9,]+)/ ) {
+        } elsif( $_ =~ /^(dow:)([0-9,]*)/ ) {   # C 0016 + durch * ersetzt, für dow: ohne Tage
             # example: dow:1,2,4,5,6 
-            my $daystr = "";
-            if( index( $2, "0" ) != -1 ) {
-                $daystr .= "Sonntag,";
-            }
-            if( index( $2, "1" ) != -1 ) {
-                $daystr .= "Montag,";
-            }
-            if( index( $2, "2" ) != -1 ) {
-                $daystr .= "Dienstag,";
-            }
-            if( index( $2, "3" ) != -1 ) {
-                $daystr .= "Mittwoch,";
-            }
-            if( index( $2, "4" ) != -1 ) {
-                $daystr .= "Donnerstag,";
-            }
-            if( index( $2, "5" ) != -1 ) {
-                $daystr .= "Freitag,";
-            }
-            if( index( $2, "6" ) != -1 ) {
-                $daystr .= "Samstag";
-            } 
-            
-            $alarmdata .= "___" . $daystr;
+            my $rdaystr="";                 # CD 0015
+            if ($2 ne "") {              # CD 0016
+                if( index( $2, "1" ) != -1 ) {
+                    $rdaystr = "Mo";          # CD 0015
+                }
+                if( index( $2, "2" ) != -1 ) {
+                    $rdaystr .= " Tu";          # CD 0015
+                }
+                if( index( $2, "3" ) != -1 ) {
+                    $rdaystr .= " We";          # CD 0015
+                }
+                if( index( $2, "4" ) != -1 ) {
+                    $rdaystr .= " Th";          # CD 0015
+                }
+                if( index( $2, "5" ) != -1 ) {
+                    $rdaystr .= " Fr";          # CD 0015
+                }
+                if( index( $2, "6" ) != -1 ) {
+                    $rdaystr .= " Sa";          # CD 0015
+                } 
+                if( index( $2, "0" ) != -1 ) {
+                    $rdaystr .= " Su";          # CD 0015
+                }
+            } else {                            # CD 0016
+                $rdaystr = "none";              # CD 0016
+            }                                   # CD 0016
+            $rdaystr =~ s/^\s+|\s+$//g;     # CD 0015
+            readingsBulkUpdate( $hash, "alarm".$alarmcounter."_wdays", $rdaystr );    # CD 0015
             next;
         } elsif( $_ =~ /^(enabled:)([0|1])/ ) {
             # example: enabled:1 
             if( $2 eq "1" ) {
-                $alarmdata .= "___enabled";
+                readingsBulkUpdate( $hash, "alarm".$alarmcounter."_state", "on" );    # CD 0015
             } else {
-                $alarmdata .= "___disabled";
+                readingsBulkUpdate( $hash, "alarm".$alarmcounter."_state", "off" );    # CD 0015
             }
             next;
         } elsif( $_ =~ /^(repeat:)([0|1])/ ) {
             # example: repeat:1 
             if( $2 eq "1" ) {
-                $alarmdata .= "___repeating";
+                readingsBulkUpdate( $hash, "alarm".$alarmcounter."_repeat", "yes" );    # CD 0015
             } else {
-                $alarmdata .= "___once";
+                readingsBulkUpdate( $hash, "alarm".$alarmcounter."_repeat", "no" );    # CD 0015
             }
             next;
         } elsif( $_ =~ /^(time:)([0-9]+)/ ) {
@@ -1859,36 +2211,54 @@ sub SB_PLAYER_ParseAlarms( $@ ) {
                                int( scalar( $2 ) / 3600 ),
                                int( ( $2 % 3600 ) / 60 ),
                                int( $2 % 60 ) );
-            $alarmdata .= "___" . $buf;
+            readingsBulkUpdate( $hash, "alarm".$alarmcounter."_time", $buf );    # CD 0015
             next;
         } elsif( $_ =~ /^(volume:)(\d{1,2})/ ) {
             # example: volume:50 
-            $alarmdata .= "___" . $2;
+            readingsBulkUpdate( $hash, "alarm".$alarmcounter."_volume", $2 );    # CD 0015
             next;
         } elsif( $_ =~ /^(url:)(\S+)/ ) {
-            #examples
-            # url:http://opml.radiotime.com/Tune.ashx?id=s14991&formats=aac,ogg
-            # url:CURRENT_PLAYLIST
-            if( $2 ne "CURRENT_PLAYLIST" ) {
-                $alarmdata .= "___aktuelle_Auswahl";
+            # CD 0015 start
+            my $pn=SB_SERVER_FavoritesName2UID(uri_unescape($2));
+            if(defined($hash->{helper}{alarmPlaylists})
+                && defined($hash->{helper}{alarmPlaylists}{$pn})) {
+                readingsBulkUpdate( $hash, "alarm".$alarmcounter."_sound", $hash->{helper}{alarmPlaylists}{$pn}{title} );
             } else {
-                $alarmdata .= "___etwas_anderes";
+                readingsBulkUpdate( $hash, "alarm".$alarmcounter."_sound", $2 );
             }
-
-            # this is the last in line command send by LMS
-            $hash->{"$alarmname"} = $alarmdata;
-                
+            # CD 0015 end
+            next;
+        # CD 0016 start
+        } elsif( $_ =~ /^(filter:)(\S+)/ ) {
+            next;
+        # CD 0016 end
+        # MM 0016 start
+        } elsif( $_ =~ /^(tags:)(\S+)/ ) {
+            next;
+        } elsif( $_ =~ /^(fade:)([0|1])/ ) {
+            # example: fade:1 
+            if( $2 eq "1" ) {
+                readingsBulkUpdate( $hash, "alarmsFadeIn", "on" );      # CD 0016 von MM übernommen, Namen geändert
+            } else {
+                readingsBulkUpdate( $hash, "alarmsFadeIn", "off" );     # CD 0016 von MM übernommen, Namen geändert
+            }
+            next;
+        } elsif( $_ =~ /^(count:)([0-9]+)/ ) {
+            $hash->{helper}{ALARMSCOUNT} = $2;  # CD 0016 ALARMSCOUNT nach {helper} verschoben
             next;
         } else {
-            # unknown
+            Log3( $hash, 1, "SB_PLAYER_Alarms($name): Unknown data ($_)");
+            next;
+        }
+        # MM 0016 end
+    }
+
+    # CD 0015 nicht mehr vorhandene Alarme löschen
+    if ($lastAlarmCount>$hash->{helper}{ALARMSCOUNT}) { # CD 0016 ALARMSCOUNT nach {helper} verschoben
+        for(my $i=$hash->{helper}{ALARMSCOUNT}+1;$i<=$lastAlarmCount;$i++) {    # CD 0016 ALARMSCOUNT nach {helper} verschoben
+            fhem( "deletereading $name alarm".$i."_.*" );
         }
     }
-
-    if( $hash->{ALARMSCOUNT} > 2 ) {
-        Log3( $hash, 2, "SB_PLAYER_Alarms($name): Player has more than " . 
-              "two alarms. So not fully under control by FHEM" );
-    }
-
 }
 
 
@@ -1929,7 +2299,7 @@ sub SB_PLAYER_ServerTurnOn( $ ) {
 #  used to turn on a connected amplifier
 # ----------------------------------------------------------------------------
 # CD 0012 start
-sub SB_PLAYER_tcb_DelayAmplifier( $ ) {     # CD 0014 Name ge�ndert
+sub SB_PLAYER_tcb_DelayAmplifier( $ ) {     # CD 0014 Name geändert
     my($in ) = shift;
     my(undef,$name) = split(':',$in);
     my $hash = $defs{$name};
@@ -1992,14 +2362,14 @@ sub SB_PLAYER_Amplifier( $ ) {
           "and set:$setvalue" );
 
     if ( $actualState ne $setvalue) {
-        # CD 0012 start - Abschalten �ber Attribut verz�gern, generell verz�gern damit set-Event funktioniert
+        # CD 0012 start - Abschalten über Attribut verzögern, generell verzögern damit set-Event funktioniert
         my $delayAmp=($setvalue eq "off")?AttrVal( $name, "amplifierDelayOff", 0 ):0.1;
         $delayAmp=0.01 if($delayAmp==0);
         if (!defined($hash->{helper}{AMPLIFIERDELAYOFF})) {
             Log3( $hash, 5, 'SB_PLAYER_Amplifier($name): delaying amplifier on/off' );
             RemoveInternalTimer( "DelayAmplifier:$name");
             InternalTimer( gettimeofday() + $delayAmp, 
-               "SB_PLAYER_tcb_DelayAmplifier",  # CD 0014 Name ge�ndert
+               "SB_PLAYER_tcb_DelayAmplifier",  # CD 0014 Name geändert
                "DelayAmplifier:$name", 
                0 );
             return;
@@ -2042,9 +2412,8 @@ sub SB_PLAYER_CoverArt( $ ) {
             "current/cover_" . AttrVal( $name, "coverartheight", 50 ) . 
             "x" . AttrVal( $name, "coverartwidth", 50 ) . 
             ".jpg?player=$hash->{PLAYERMAC}";
-    } elsif( ( $hash->{ISREMOTESTREAM} eq "1" ) ||
-             ( $hash->{ISREMOTESTREAM} == 1 ) ) {
-        # CD 0011 �berpr�fen ob �berhaupt eine URL vorhanden ist
+    } elsif( $hash->{ISREMOTESTREAM} eq "1" ) { # CD 0017 Abfrage  || ( $hash->{ISREMOTESTREAM} == 1 ) entfernt
+        # CD 0011 überprüfen ob überhaupt eine URL vorhanden ist
         if($hash->{ARTWORKURL} ne "?") {
             $hash->{COVERARTURL} = "http://www.mysqueezebox.com/public/" . 
                 "imageproxy?u=" . $hash->{ARTWORKURL} . 
@@ -2071,7 +2440,7 @@ sub SB_PLAYER_CoverArt( $ ) {
         # weblink not specified
         return;
     } else {
-        if ($lastCoverartUrl ne $hash->{COVERARTURL}) {                 # CD 0013 nur bei �nderung aktualisieren
+        if ($lastCoverartUrl ne $hash->{COVERARTURL}) {                 # CD 0013 nur bei Änderung aktualisieren
             fhem( "modify " . $hash->{COVERARTLINK} . " image " . 
                   $hash->{COVERARTURL} );
         }                                                               # CD 0013
@@ -2135,6 +2504,8 @@ sub SB_PLAYER_ParsePlayerStatus( $$ ) {
     # set default values for stuff not always send
     $hash->{SYNCMASTER} = "none";
     $hash->{SYNCGROUP} = "none";
+    $hash->{SYNCMASTERPN} = "none";      # CD 0018
+    $hash->{SYNCGROUPPN} = "none";       # CD 0018
     $hash->{SYNCED} = "no";
     $hash->{COVERID} = "?";
     $hash->{ARTWORKURL} = "?";
@@ -2230,10 +2601,30 @@ sub SB_PLAYER_ParsePlayerStatus( $$ ) {
         } elsif( $cur =~ /^(sync_master:)($dd[:|-]$dd[:|-]$dd[:|-]$dd[:|-]$dd[:|-]$dd)/ ) {
             $hash->{SYNCMASTER} = $2;
             $hash->{SYNCED} = "yes";
+            $hash->{SYNCMASTERPN} = SB_PLAYER_MACToPlayername($hash,$2);  # CD 0018
             next;
 
         } elsif( $cur =~ /^(sync_slaves:)(.*)/ ) {
             $hash->{SYNCGROUP} = $2;
+            # CD 0018 start
+            my @macs=split(",",$hash->{SYNCGROUP});
+            my $syncgroup;
+            foreach ( @macs ) {
+                my $mac=$_;
+                my $dev=SB_PLAYER_MACToPlayername($hash,$mac);
+                $syncgroup.="," if(defined($syncgroup));
+                if(defined($dev)) {
+                    $syncgroup.=$dev;
+                } else {
+                    if($mac eq $hash->{PLAYERMAC}) {
+                        $syncgroup.=$name;
+                    } else {
+                        $syncgroup.=$mac;
+                    }
+                }
+            }
+            $hash->{SYNCGROUPPN} = $syncgroup;
+            # CD 0018 end
             next;
 
         } elsif( $cur =~ /^(will_sleep_in:)([0-9\.]*)/ ) {
@@ -2338,6 +2729,27 @@ sub SB_PLAYER_ParsePlayerStatus( $$ ) {
 
 }
 
+# CD 0018 start
+# ----------------------------------------------------------------------------
+#  convert MAC to playername
+# ----------------------------------------------------------------------------
+sub SB_PLAYER_MACToPlayername( $$ ) {
+    my( $hash, $mac ) = @_;
+    my $name = $hash->{NAME};
+
+    return $hash->{PLAYERNAME} if($hash->{PLAYERMAC} eq $mac);
+
+    my $dev;
+    foreach my $e ( keys %{$hash->{helper}{SB_PLAYER_SyncMasters}} ) {
+        if($mac eq $hash->{helper}{SB_PLAYER_SyncMasters}{$e}{MAC}) {
+            $dev=$e;
+            last;
+        }
+    }
+    return $dev;
+}
+# CD 0018 end
+
 # CD 0014 start
 # ----------------------------------------------------------------------------
 #  estimate elapsed time
@@ -2378,6 +2790,8 @@ sub SB_PLAYER_UpdateVolumeReadings( $$$ ) {
     
     my $name = $hash->{NAME};
 
+    $vol = int($vol);       # MM 0016, Fix wegen AirPlay-Plugin
+
     if( $bulk == true ) {    
         readingsBulkUpdate( $hash, "volumeStraight", $vol );
         if( $vol > 0 ) {
@@ -2410,6 +2824,8 @@ sub SB_PLAYER_SetSyncedVolume( $$ ) {
     my $sva=AttrVal($name, "syncVolume", undef);
     my $t=$hash->{SYNCGROUP}.",".$hash->{SYNCMASTER};
     
+    $vol = int($vol);       # MM 0016, Fix wegen AirPlay-Plugin
+
     $hash->{helper}{setSyncVolume}=$vol;
     
     if(defined($sva) && ($sva ne "0") && ($sva ne "1")) {
@@ -2463,17 +2879,20 @@ sub SB_PLAYER_SetSyncedVolume( $$ ) {
   <ul>
     <code>define &lt;name&gt; SB_PLAYER &lt;player_mac_adress&gt; [&lt;ampl&gt;] [&lt;coverart&gt;]</code>
     <br><br>
-    This module allows you to control Squeezebox Media Players connected with an defined Logitech Media Server. A SB_SERVER device is need to work.<br>
+    This module allows you to control Squeezebox Media Players connected with a defined Logitech Media Server. An SB_SERVER device is needed to work.<br>
    Normally you don't need to define your SB_PLAYERS because autocreate will do that if enabled.<br><br>
 
    <ul>
       <li><code>&lt;player_mac_adress&gt;</code>: Mac adress of the player found in the LMS.  </li>
-   </ul>   
-   <b>Optional</b>
+   </ul><br>   
+   <b>Optional</b><br><br>
    <ul>
-      <li><code>&lt;[ampl]&gt;</code>: You can define a FHEM Device to react when an on or off event is received. With the attribute amplifier you can specify to turn the selected FHEM Device on|off or play|stop.  </li>
-      <li><code>&lt;[coverart]&gt;</code>: You can define a FHEM weblink. The player will update the weblink with the current coverart. Useful for putting coverarts in the floorplan  </li>
+      <li><code>&lt;[ampl]&gt;</code>: You can define an FHEM Device to command when an on or off event is received. With the attribute
+      <a href="#SBplayeramplifier">amplifier</a> you can specify whether to command the selected FHEM Device on on|off or play|stop.</li>
+      <li><code>&lt;[coverart]&gt;</code>: You can define an FHEM weblink. The player will update the weblink with the current coverart.
+      Useful for putting coverarts in the floorplan.</li>
    </ul><br><br>
+  </ul>
    
   <a name="SBplayerset"></a>
   <b>Set</b>
@@ -2482,26 +2901,26 @@ sub SB_PLAYER_SetSyncedVolume( $$ ) {
     <br><br>
     This module supports the following commands:<br>
    
-    SB_Player related commands:<br>
+    SB_Player related commands:<br><br>
    <ul>
       <li><b>play</b> -  starts the playback (might only work if previously paused).</li>
-     <li><b>pause [&lt;0|1&gt;]</b> -  toggles between play and pause. With parameter 0 it unpause and with 1 it pause the player, doesn't matter which state it has before</li>
+     <li><b>pause [&lt;0|1&gt;]</b> -  toggles between play and pause. With parameter 0 it unpauses and with 1 it pauses the player, it doesn't matter which state it had before</li>
      <li><b>stop</b> -  stop the playback</li>
-     <li><b>next|channelUp</b> -  jump to the next track</li> /* CHECK SYNTAX
-     <li><b>prev|channelDown</b> -  jump to the previous track or the beginning of the current track.</li> /* CHECK SYNTAX
-     <li><b>mute</b> -  toggels between mute and unmuted</li>
+     <li><b>next|channelUp</b> -  jump to the next track</li>
+     <li><b>prev|channelDown</b> -  jump to the previous track or the beginning of the current track.</li>
+     <li><b>mute</b> -  toggles between muted and unmuted</li>
      <li><b>volume &lt;n&gt;</b> -  sets the volume to &lt;n&gt;. &lt;n&gt; must be a number between 0 and 100</li>
      <li><b>volumeStraight &lt;n&gt;</b> -  same as volume</li>
-     <li><b>volumeDown|volDown &lt;n&gt;</b> -  volume down</li> /* CHECK SYNTAX
-     <li><b>volumeUp|volUp &lt;n&gt;</b> -  volume up</li> /* CHECK SYNTAX
+     <li><b>volumeDown|volDown &lt;n&gt;</b> -  volume down</li>
+     <li><b>volumeUp|volUp &lt;n&gt;</b> -  volume up</li>
      <li><b>on</b> -  set the player on if possible. Otherwise it does play</li>
      <li><b>off</b> -  set the player off if possible. Otherwise it does stop</li>
-     <li><b>shuffle &lt;on|off&gt;</b> -  Enables/Disables shuffle mode</li>
+     <li><b>shuffle &lt;on|off|song|album&gt;</b> -  Enables/Disables shuffle mode</li>
      <li><b>repeat &lt;one|all|off&gt;</b> -  Sets the repeat mode</li>
      <li><b>sleep &lt;n&gt;</b> -  Sets the player off in &lt;n&gt; seconds and fade the player volume down</li>   
-     <li><b>favorites &lt;favorit&gt;</b> -  Empty the current playlist and start the selected playlist. Favorits are selectable through a dropdown list</li>   
-     <li><b>talk &lt;text&gt;</b> -  Empty the current playlist and speaks the selected text with google TTS</li>
-     <li><b>playlist &lt;track|album|artist&gt; &lt;x&gt;</b> -  Empty the current playlist starts the track album or artist &lt;x&gt;</li>
+     <li><b>favorites &lt;favorit&gt;</b> -  Empty the current playlist and start the selected playlist. Favorites are selectable through a dropdown list</li>   
+     <li><b>talk|sayText &lt;text&gt;</b> -  Empty the current playlist and speaks the selected text with google TTS</li>
+     <li><b>playlist &lt;track|album|artist|genre|year&gt; &lt;x&gt;</b> -  Empty the current playlist and starts the track, album or artist &lt;x&gt;</li>
      <li><b>playlist &lt;genre&gt; &lt;artist&gt; &lt;album&gt;</b> -  Empty the current playlist starts the track which will match the search. You can use * as wildcard for everything</li>
      Example:
      <code>set myplayer playlist * Whigfield *</code>
@@ -2523,7 +2942,7 @@ sub SB_PLAYER_SetSyncedVolume( $$ ) {
    You can define up to 2 alarms.
       <code>set sbradio alarm1 set &lt;weekday&gt; &lt;time&gt;</code>
      <li><b>&lt;weekday&gt;</b> -  Number of weekday. The week starts with Sunday and is 0</li>
-     <li><b>&lt;time&gt;</b> -  Timeformat HH:MM:SS</li>
+     <li><b>&lt;time&gt;</b> -  Timeformat HH:MM[:SS]</li>
    Example:<br>
    <code>set sbradio alarm1 set 5 12:23:17<br>
 set sbradio alarm2 set 4 17:18:00</code>
@@ -2535,6 +2954,7 @@ set sbradio alarm2 set 4 17:18:00</code>
    <br>
       
   <br>
+  </ul>
   <b>Generated Readings</b><br>
   <ul>
    <li><b>READING</b> - READING DESCRIPTIONS</li>  /* CHECK TODO
@@ -2544,14 +2964,20 @@ set sbradio alarm2 set 4 17:18:00</code>
   <a name="SBplayerattr"></a>
   <b>Attributes</b>
   <ul>
+    <li>IODev<br>
+      The name of the SB_SERVER device to which this player is connected.</li><br>
+    <li>donotnotify<br>
+      Disables all events from the device. Must be explicitly set to <code>false</code> to enable events.</li><br>
     <li>volumeLimit<br>
-      Sets the volume limit of the player between 0 and 100. 100 means the function is disabled.</li>
-    <li>amplifier<br>
-      ATTRIBUTE DESCRIPTION</li>  /* CHECK TODO
+      Sets the volume limit of the player between 0 and 100. 100 means the function is disabled.</li><br>
+    <li><a name="SBplayeramplifier">amplifier</a><br>
+      Defines how a configured amplifier will be controlled. If set to <code>on</code>, the amplifier will be turned on and off with the
+      player. If set to <code>play</code> the amplifier will be turned on on play and off on stop.</li><br>
+    <li>amplifierDelayOff<br>
+      Sets the delay in seconds before turning the amplifier off after the player has stopped or been turned off.</li><br>
+    <li>updateReadingsOnSet<br>
+      If set to true most readings are immediately updated when a set command is executed without waiting for the reply from the server.</li><br>
   </ul>
 </ul>
-</ul>
-</ul>
-test
 =end html
 =cut
