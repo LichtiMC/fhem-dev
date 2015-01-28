@@ -2624,6 +2624,8 @@ sub SB_PLAYER_ParsePlayerStatus( $$ ) {
                 }
             }
             $hash->{SYNCGROUPPN} = $syncgroup;
+            readingsBulkUpdate( $hash, "synced", "$hash->{SYNCMASTERPN},$hash->{SYNCGROUPPN}" );
+
             # CD 0018 end
             next;
 
@@ -2717,6 +2719,10 @@ sub SB_PLAYER_ParsePlayerStatus( $$ ) {
             next;
 
         }
+    }
+
+    if ($hash->{SYNCED}ne"yes") {
+        readingsBulkUpdate( $hash, "synced", "none" );
     }
 
     # CD 0003 moved before readingsEndUpdate
