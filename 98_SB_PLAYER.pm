@@ -1,5 +1,5 @@
 ﻿# ##############################################################################
-# $Id: 98_SB_PLAYER.pm beta 20141120 0018 CD/MM $
+# $Id: 98_SB_PLAYER.pm beta 20141120 0024 CD/MM/Matthew $
 #
 #  FHEM Modue for Squeezebox Players
 #
@@ -725,19 +725,20 @@ sub SB_PLAYER_Parse( $$ ) {
             if(!defined($args[ 1 ])) {
                 readingsBulkUpdate( $hash, "currentPlaylistName","-");
                 readingsBulkUpdate( $hash, "playlists","-");
-                $hash->{FAVSELECT} = '-';
-                readingsBulkUpdate( $hash, "$hash->{FAVSET}", '-' );
+                #$hash->{FAVSELECT} = '-';                              # CD 0021 deaktiviert
+                #readingsBulkUpdate( $hash, "$hash->{FAVSET}", '-' );   # CD 0021 deaktiviert
             }
             # CD 0014 end
             if(defined($args[ 1 ]) && ($args[ 1 ] ne '?')) {            # CD 0009 check empty name - 0011 ignore '?'
                 shift( @args );
                 readingsBulkUpdate( $hash, "currentPlaylistName", 
                                     join( " ", @args ) );
+                my $pn=SB_SERVER_FavoritesName2UID(join( " ", @args ));     # CD 0021 verschoben, decode hinzugefügt # CD 0023 decode entfernt
+                Log 0,$pn." - ".join( " ", @args );
                 # CD 0008 update playlists reading
-                readingsBulkUpdate( $hash, "playlists", 
-                                    join( "_", @args ) );
+                readingsBulkUpdate( $hash, "playlists", $pn);           # CD 0021 $pn verwenden wegen Dropdown
+                #                   join( "_", @args ) );               # CD 0021 deaktiviert
                 # CD 0007 start - check if playlist == fav, 0014 removed debug info
-                my $pn=SB_SERVER_FavoritesName2UID(join( " ", @args ));
                 if( defined($hash->{helper}{SB_PLAYER_Favs}{$pn}) && defined($hash->{helper}{SB_PLAYER_Favs}{$pn}{ID})) {   # CD 0011 check if defined($hash->{helper}{SB_PLAYER_Favs}{$pn})
                     $hash->{FAVSELECT} = $pn;
                     readingsBulkUpdate( $hash, "$hash->{FAVSET}", "$pn" );
@@ -748,6 +749,31 @@ sub SB_PLAYER_Parse( $$ ) {
                 # CD 0007 end
             }
             # CD 0009 start
+        # CD 0021 start, update favorites if url matches
+        } elsif( $args[ 0 ] eq "play" ) {
+            if(defined($args[ 1 ])) {
+                $args[ 1 ]=~s/\\/\//g;
+                $hash->{FAVSELECT}="-";
+                foreach my $e ( keys %{$hash->{helper}{SB_PLAYER_Favs}} ) {
+                    if($args[ 1 ] eq $hash->{helper}{SB_PLAYER_Favs}{$e}{URL}) {
+                        $hash->{FAVSELECT} = $e;
+                        last;
+                    }
+                }
+                readingsBulkUpdate( $hash, "$hash->{FAVSET}", "$hash->{FAVSELECT}" );
+                # CD 0022 send to synced players # CD 0023 fixed
+                if( $hash->{SYNCED} eq "yes") {
+                    if (defined($hash->{SYNCGROUP}) && ($hash->{SYNCGROUP} ne '?') && ($hash->{SYNCMASTER} ne 'none')) {
+                        my @pl=split(",",$hash->{SYNCGROUP}.",".$hash->{SYNCMASTER});
+                        foreach (@pl) {
+                            if ($hash->{PLAYERMAC} ne $_) {
+                                IOWrite( $hash, "$_ fhemrelay favorites $hash->{FAVSELECT}\n" );
+                            }
+                        }
+                    }
+                }
+            }
+        # CD 0021 end
         } elsif( $args[ 0 ] eq "clear" ) {
             readingsBulkUpdate( $hash, "currentPlaylistName", "none" );
             readingsBulkUpdate( $hash, "playlists", "none" );
@@ -897,7 +923,7 @@ sub SB_PLAYER_Parse( $$ ) {
                 if (($i1!=-1)&&($i2!=-1)&&($i3!=-1)) {
                     my $url=substr($a,$i2+5,$i3-$i2-5);
                     $url=substr($a,$i1+7,$i2-$i1-7) if ($url eq "");
-                    my $pn=SB_SERVER_FavoritesName2UID($url);
+                    my $pn=SB_SERVER_FavoritesName2UID(decode('utf-8',$url));               # CD 0021 decode hinzugefügt
                     $hash->{helper}{alarmPlaylists}{$pn}{category}=substr($a,0,$i1);
                     $hash->{helper}{alarmPlaylists}{$pn}{title}=substr($a,$i1+7,$i2-$i1-7);
                     $hash->{helper}{alarmPlaylists}{$pn}{url}=$url;
@@ -1046,6 +1072,18 @@ sub SB_PLAYER_Parse( $$ ) {
             IOWrite( $hash, $hash->{helper}{SB_PLAYER_SyncMasters}{$e}{MAC}." status 0 500 tags:Kc\n" );
         }
     # CD 0018
+    # CD 0022 fhemrelay ist keine Meldung des LMS sondern eine Info die von einem anderen Player über 98_SB_PLAYER kommt
+    } elsif( $cmd eq "fhemrelay" ) {
+        if (defined($args[0])) {
+            # CD 0022 Favoriten vom Sync-Master übernehmen
+            if ($args[0] eq "favorites") {
+                if (defined($args[1])) {
+                    $hash->{FAVSELECT} = $args[1];
+                    readingsBulkUpdate( $hash, "$hash->{FAVSET}", "$hash->{FAVSELECT}" );
+                }
+            }
+        }
+    # CD 0022 end
     } elsif( $cmd eq "NONE" ) {
         # we shall never end up here, as cmd=NONE is used by the server for 
         # autocreate
@@ -1262,7 +1300,7 @@ sub SB_PLAYER_Set( $@ ) {
                          "play item_id:$fid\n" );
                 $hash->{FAVSELECT} = $arg[ 0 ];
                 readingsSingleUpdate( $hash, "$hash->{FAVSET}", "$arg[ 0 ]", 1 );
-                SB_PLAYER_GetStatus( $hash );
+                # SB_PLAYER_GetStatus( $hash ); # CD 0021 deaktiviert, zu früh
             }
         }       # CD 0014
 
@@ -1703,7 +1741,7 @@ sub SB_PLAYER_Alarm( $$@ ) {
         }
         
         if( $id ne "none" ) {
-            IOWrite( $hash, "$hash->{PLAYERMAC} alarm delete $id\n" );
+            IOWrite( $hash, "$hash->{PLAYERMAC} alarm delete id:$id\n" );   # CD 0020 'id' fehlt
             # readingsSingleUpdate( $hash, "alarmid$n", "none", 0 );        # CD 0015 deaktiviert
         }
         
@@ -1732,7 +1770,7 @@ sub SB_PLAYER_Alarm( $$@ ) {
                 }
             }
             # CD 0015 end
-            $cmdstr .= " playlist:" . uri_escape($url);   # CD 0015 uri_escape und join hinzugefügt
+            $cmdstr .= " playlist:" . uri_escape(decode('utf-8',$url));   # CD 0015 uri_escape und join hinzugefügt # CD 0020 decode hinzugefügt
         }
         $cmdstr .= " time:$secs\n";
 
@@ -1925,6 +1963,7 @@ sub SB_PLAYER_CheckWeekdays( $ ) {
     {
         $weekdays='7';
     }
+    $weekdays=~ s/,$//;     # CD 0019 letztes , entfernen
     return $weekdays;
 }
 
@@ -2047,6 +2086,7 @@ sub SB_PLAYER_RecBroadcast( $$@ ) {
         if( $args[ 0 ] eq "ADD" ) {
             # format: ADD IODEVname ID shortentry
             $hash->{helper}{SB_PLAYER_Favs}{$args[3]}{ID} = $args[ 2 ];
+            $hash->{helper}{SB_PLAYER_Favs}{$args[3]}{URL} = $args[ 4 ];        # CD 0021 hinzugefügt
             if( $hash->{FAVSTR} eq "" ) {
                 $hash->{FAVSTR} = $args[ 3 ];   # CD Test für Leerzeichen join("&nbsp;",@args[ 4..$#args ]);
             } else {
@@ -2624,9 +2664,8 @@ sub SB_PLAYER_ParsePlayerStatus( $$ ) {
                 }
             }
             $hash->{SYNCGROUPPN} = $syncgroup;
-            readingsBulkUpdate( $hash, "synced", "$hash->{SYNCMASTERPN},$hash->{SYNCGROUPPN}" );
-
             # CD 0018 end
+            readingsBulkUpdate( $hash, "synced", "$hash->{SYNCMASTERPN},$hash->{SYNCGROUPPN}" );    # Matthew 0019 hinzugefügt
             next;
 
         } elsif( $cur =~ /^(will_sleep_in:)([0-9\.]*)/ ) {
@@ -2720,10 +2759,11 @@ sub SB_PLAYER_ParsePlayerStatus( $$ ) {
 
         }
     }
-
-    if ($hash->{SYNCED}ne"yes") {
+    # Matthew 0019 start
+    if( $hash->{SYNCED} ne "yes") {
         readingsBulkUpdate( $hash, "synced", "none" );
     }
+    # Matthew 0019 end
 
     # CD 0003 moved before readingsEndUpdate
     # update the cover art
