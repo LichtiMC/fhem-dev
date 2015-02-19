@@ -182,6 +182,10 @@ sub MilightDevice_Define($$)
   # Event on change reading
   $attr{$name}{"event-on-change-reading"} = "state,transitionInProgress" if (!defined($attr{$name}{"event-on-change-reading"}));
   
+  # subtype
+  $attr{$name}{"subType"} = "colordimmer" if (($hash->{LEDTYPE} eq 'RGBW')|| ($hash->{LEDTYPE} eq 'RGB'));
+  $attr{$name}{"subType"} = "ctdimmer" if ($hash->{LEDTYPE} eq 'White');
+  
   # IODev
   $attr{$name}{IODev} = $hash->{IODev} if (!defined($attr{$name}{IODev}));
   
@@ -488,15 +492,17 @@ sub MilightDevice_Set(@)
   }
   elsif ($cmd eq 'preset')
   {
-    return "Usage: set $name preset <0..X|+>" if (!defined($args[0]));
-    return "Usage: set $name preset <0..X|+>" if ($args[0] !~ /^(\d+|\+)$/);
-
+    my $preset = "+";
+    # Default to "preset +" if no args defined
+    if (defined($args[0]))
+    {
+      return "Usage: set $name preset <0..X|+>" if ($args[0] !~ /^(\d+|\+)$/);
+      $preset = $args[0];
+    }
+       
     # Get presets, if not defined default to 1 preset 0,0,100.
     my @presets = split(/ /, AttrVal($hash->{NAME}, "presets", MilightDevice_HSVToStr($hash, 0, 0, 100)));
 
-    # If preset = "+" then load the next one
-    my $preset = $args[0];
-    
     # Load the next preset (and loop back to the first) if "+" specified.
     if ("$preset" eq "+")
     {
