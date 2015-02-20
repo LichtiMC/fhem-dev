@@ -183,7 +183,7 @@ sub MilightDevice_Define($$)
   $attr{$name}{"event-on-change-reading"} = "state,transitionInProgress" if (!defined($attr{$name}{"event-on-change-reading"}));
 
   # lightScene
-  if(!defined($attr{$name}{"lightSceneParamsToSave"})
+  if(!defined($attr{$name}{"lightSceneParamsToSave"}))
   {
     $attr{$name}{"lightSceneParamsToSave"} = "hsv" if (($hash->{LEDTYPE} eq 'RGBW')|| ($hash->{LEDTYPE} eq 'RGB'));
     $attr{$name}{"lightSceneParamsToSave"} = "brightness" if ($hash->{LEDTYPE} eq 'White');
