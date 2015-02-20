@@ -1,5 +1,5 @@
 
-# $Id$
+# $Id: 31_LightScene.pm 7868 2015-02-04 12:39:49Z justme1968 $
 
 package main;
 
@@ -513,15 +513,6 @@ LightScene_SaveDevice($$)
     }
   } elsif( $type eq 'TRX_LIGHT' ) {
     $state = Value($d);
-  } elsif( $type eq 'MilightDevice' ) {
-    my $subtype = AttrVal($d,"subType","");
-    if( Value($d) eq "off" ) {
-      $state = Value($d);
-    } elsif( $subtype eq 'ctdimmer' ) {
-      $state = "brightness ". ReadingsVal($d,'brightness','0') ." : ct ". ReadingsVal($d,'ct','1');
-    } elsif( $subtype eq 'colordimmer' ) {
-      $state = "hsv ". ReadingsVal($d,'hue','0') .",". ReadingsVal($d,'saturation','0') .",". ReadingsVal($d,'brightness','0');
-    }
   } else {
     $state = Value($d);
   }
