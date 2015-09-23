@@ -1,5 +1,5 @@
 ##############################################
-# $Id$
+# $Id: DevIo.pm 8954 2015-07-13 16:01:48Z rudolfkoenig $
 package main;
 
 sub DevIo_CloseDev($@);
@@ -95,7 +95,9 @@ DevIo_TimeoutRead($$)
     my $nfound = select($rin, undef, undef, $timeout);
     last if($nfound <= 0);
     my $r = DevIo_DoSimpleRead($hash);
-    last if(!defined($r) || ($r == "" && $hash->{TCPDev}));
+#    last if(!defined($r) || ($r == "" && $hash->{TCPDev}));
+    last if(!defined($r));
+
     $answer .= $r;
   }
   return $answer;
