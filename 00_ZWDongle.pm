@@ -1,5 +1,5 @@
 ##############################################
-# $Id$
+# $Id: 00_ZWDongle.pm 9371 2015-10-04 15:30:23Z rudolfkoenig $
 # TODO:
 # - routing commands
 # - one command to create a fhem device for all nodeList entries
@@ -331,6 +331,9 @@ ZWDongle_Get($@)
   return "Unknown argument $type, choose one of " .
         join(" ", map { $gets{$_} =~ m/%/ ? $_ : "$_:noArg" } sort keys %gets)
         if(!defined($gets{$type}));
+
+  DevIo_OpenDev($hash, 1, "ZWDongle_DoInit")
+    if($hash->{STATE} eq "disconnected");
 
   my $fb = substr($gets{$type}, 0, 2);
   if($fb =~ m/^[0-8A-F]+$/i && $type ne "caps" &&
@@ -677,8 +680,11 @@ ZWDongle_ReadAnswer($$$)
 {
   my ($hash, $arg, $regexp) = @_;
   Log3 $hash, 4, "ZWDongle_ReadAnswer arg:$arg regexp:".($regexp ? $regexp:"");
-  return ("No FD (dummy device?)", undef)
-        if(!$hash || ($^O !~ /Win/ && !defined($hash->{FD})));
+  if(!$hash || ($^O !~ /Win/ && !defined($hash->{FD}))) {
+    DevIo_setStates($hash, "disconnected") if(!AttrVal($hash->{NAME},"dummy",undef));
+    return ("No FD (dummy device?)", undef);
+  }
+
   my $to = ($hash->{RA_Timeout} ? $hash->{RA_Timeout} : 3);
 
   for(;;) {
