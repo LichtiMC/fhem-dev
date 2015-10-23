@@ -15,8 +15,8 @@ sub ZWDongle_Parse($$$);
 sub ZWDongle_Read($@);
 sub ZWDongle_ReadAnswer($$$);
 sub ZWDongle_Ready($);
-sub ZWDongle_Write($$$@);
-sub ZWave_HandleSendStack($);
+sub ZWDongle_Write($$$);
+sub ZWDongle_ProcessSendStack($);
 
 
 # See also:
@@ -25,32 +25,40 @@ sub ZWave_HandleSendStack($);
 # http://buzzdavidson.com/?p=68
 # https://bitbucket.org/bradsjm/aeonzstickdriver
 my %sets = (
-  "addNode"   => { cmd   => "4a%02x@",       # ZW_ADD_NODE_TO_NETWORK',
-                   param => {on=>0x81, off=>0x05 } },
-  "removeNode"=> { cmd   => "4b%02x@",       # ZW_REMOVE_NODE_FROM_NETWORK',
-                   param => {on=>0x81, off=>0x05 } },
-  "createNode"=> { cmd   => "60%02x"  },     # ZW_REQUEST_NODE_INFO',
-  "neighborUpdate" => { cmd => "48%02x" },   # ZW_REQUEST_NODE_NEIGHBOR_UPDATE
-  "sendNIF"   => { cmd   => "12%02x05@" },   # ZW_SEND_NODE_INFORMATION
+  "addNode"          => { cmd => "4a%02x@",    # ZW_ADD_NODE_TO_NETWORK'
+                          param => {nwOn=>0xc1, on=>0x81, off=>0x05 } },
+  "removeNode"       => { cmd => "4b%02x@",    # ZW_REMOVE_NODE_FROM_NETWORK'
+                          param => {nwOn=>0xc1, on=>0x81, off=>0x05 } },
+  "createNode"       => { cmd => "60%02x" },   # ZW_REQUEST_NODE_INFO'
+  "removeFailedNode" => { cmd => "61%02x@" },   # ZW_REMOVE_FAILED_NODE_ID
+  "replaceFailedNode"=> { cmd => "63%02x@" },   # ZW_REPLACE_FAILED_NODE
+  "sendNIF"          => { cmd => "12%02x05@" },# ZW_SEND_NODE_INFORMATION
+  "setNIF"           => { cmd => "03%02x%02x%02x%02x" },
+                                              # SERIAL_API_APPL_NODE_INFORMATION
+  "timeouts"         => { cmd => "06%02x%02x" }, # SERIAL_API_SET_TIMEOUTS
+  "reopen"           => { cmd => "" },
 );
 
 my %gets = (
-  "caps"      => "07",            # SERIAL_API_GET_CAPABILITIES
-  "ctrlCaps"  => "05",            # ZW_GET_CONTROLLER_CAPS
-  "nodeInfo"  => "41%02x",        # ZW_GET_NODE_PROTOCOL_INFO
-  "nodeList"  => "02",            # SERIAL_API_GET_INIT_DATA
-  "homeId"    => "20",            # MEMORY_GET_ID
-  "version"   => "15",            # ZW_GET_VERSION
+  "caps"            => "07",      # SERIAL_API_GET_CAPABILITIES
+  "ctrlCaps"        => "05",      # ZW_GET_CONTROLLER_CAPS
   "getVirtualNodes" => "a5",      # ZW_GET_VIRTUAL_NODES
-  "neighborList" => "80%02x0101", # GET_ROUTING_TABLE_LINE include dead links,
-                                  #              include non-routing neigbors
-  "raw"       => "%s",            # hex
+  "homeId"          => "20",      # MEMORY_GET_ID
+  "isFailedNode"    => "62%02x",  # ZW_IS_FAILED_NODE
+  "nodeInfo"        => "41%02x",  # ZW_GET_NODE_PROTOCOL_INFO
+  "nodeList"        => "02",      # SERIAL_API_GET_INIT_DATA
+  "random"          => "1c%02x",  # ZW_GET_RANDOM
+  "version"         => "15",      # ZW_GET_VERSION
+  "timeouts"        => "06",      # SERIAL_API_SET_TIMEOUTS
+
+  "raw"             => "%s",            # hex
 );
 
 # Known controller function. 
 # Note: Known != implemented, see %sets & %gets for the implemented ones.
 use vars qw(%zw_func_id);
 use vars qw(%zw_type6);
+
 %zw_func_id= (
   '02'  => 'SERIAL_API_GET_INIT_DATA',
   '03'  => 'SERIAL_API_APPL_NODE_INFORMATION',
@@ -68,11 +76,18 @@ use vars qw(%zw_type6);
   '16'  => 'ZW_SEND_DATA_ABORT',
   '17'  => 'ZW_R_F_POWER_LEVEL_SET',
   '18'  => 'ZW_SEND_DATA_META',
+  '1c'  => 'ZW_GET_RANDOM',
   '20'  => 'MEMORY_GET_ID',
   '21'  => 'MEMORY_GET_BYTE',
   '22'  => 'MEMORY_PUT_BYTE',
   '23'  => 'MEMORY_GET_BUFFER',
   '24'  => 'MEMORY_PUT_BUFFER',
+  '27'  => 'FLASH_AUTO_PROG_SET',
+  '29'  => 'NVM_GET_ID',
+  '2a'  => 'NVM_EXT_READ_LONG_BUFFER',
+  '2b'  => 'NVM_EXT_WRITE_LONG_BUFFER',
+  '2c'  => 'NVM_EXT_READ_LONG_BYTE',
+  '2d'  => 'NVM_EXT_WRITE_LONG_BYTE',
   '30'  => 'CLOCK_SET',
   '31'  => 'CLOCK_GET',
   '32'  => 'CLOCK_COMPARE',
@@ -80,8 +95,10 @@ use vars qw(%zw_type6);
   '34'  => 'RTC_TIMER_READ',
   '35'  => 'RTC_TIMER_DELETE',
   '36'  => 'RTC_TIMER_CALL',
+  '40'  => 'ZW_SET_LEARN_NODE_STATE',
   '41'  => 'ZW_GET_NODE_PROTOCOL_INFO',
   '42'  => 'ZW_SET_DEFAULT',
+  '43'  => 'ZW_NEW_CONTROLLER',
   '44'  => 'ZW_REPLICATION_COMMAND_COMPLETE',
   '45'  => 'ZW_REPLICATION_SEND_DATA',
   '46'  => 'ZW_ASSIGN_RETURN_ROUTE',
@@ -101,6 +118,7 @@ use vars qw(%zw_type6);
   '56'  => 'ZW_GET_SUC_NODE_ID',
   '57'  => 'ZW_SEND_SUC_ID',
   '59'  => 'ZW_REDISCOVERY_NEEDED',
+  '5e'  => 'ZW_EXPLORE_REQUEST_INCLUSION',
   '60'  => 'ZW_REQUEST_NODE_INFO',
   '61'  => 'ZW_REMOVE_FAILED_NODE_ID',
   '62'  => 'ZW_IS_FAILED_NODE',
@@ -124,10 +142,21 @@ use vars qw(%zw_type6);
   'a4'  => 'ZW_SET_SLAVE_LEARN_MODE',
   'a5'  => 'ZW_GET_VIRTUAL_NODES',
   'a6'  => 'ZW_IS_VIRTUAL_NODE',
+  'b6'  => 'ZW_WATCHDOG_ENABLE',
+  'b7'  => 'ZW_WATCHDOG_DISABLE',
+  'b8'  => 'ZW_WATCHDOG_CHECK',
+  'b9'  => 'ZW_SET_EXT_INT_LEVEL',
+  'ba'  => 'ZW_RF_POWERLEVEL_GET',
   'bb'  => 'ZW_GET_NEIGHBOR_COUNT',
   'bc'  => 'ZW_ARE_NODES_NEIGHBOURS',
   'bd'  => 'ZW_TYPE_LIBRARY',
+  'be'  => 'ZW_SEND_TEST_FRAME',
+  'bf'  => 'ZW_GET_PROTOCOL_STATUS',
   'd0'  => 'ZW_SET_PROMISCUOUS_MODE',
+  'd2'  => 'WATCHDOG_START',
+  'd3'  => 'WATCHDOG_STOP',
+  'f2'  => 'ZME_FREQ_CHANGE',
+  'f4'  => 'ZME_BOOTLOADER_FLASH',
 );
 
 %zw_type6 = (
@@ -142,7 +171,6 @@ use vars qw(%zw_type6);
   '10' => 'SWITCH_BINARY',         'ff' => 'NON_INTEROPERABLE',
   '11' => 'SWITCH_MULTILEVEL',
 );
-
 
 sub
 ZWDongle_Initialize($)
@@ -162,9 +190,9 @@ ZWDongle_Initialize($)
   $hash->{SetFn}   = "ZWDongle_Set";
   $hash->{GetFn}   = "ZWDongle_Get";
   $hash->{AttrFn}  = "ZWDongle_Attr";
-  $hash->{AttrList}= "do_not_notify:1,0 dummy:1,0 model:ZWDongle ";
-  $hash->{AttrList}.= "disable:0,1";
-
+  $hash->{UndefFn} = "ZWDongle_Undef";
+  $hash->{AttrList}= "do_not_notify:1,0 dummy:1,0 model:ZWDongle disable:0,1 ".
+                     "homeId networkKey delayNeeded:1,0";
 }
 
 #####################################
@@ -196,6 +224,7 @@ ZWDongle_Define($$)
     Log3 $name, 1, 
         "$name device is none (homeId:$1), commands will be echoed only";
     $attr{$name}{dummy} = 1;
+    $hash->{STATE} = "dummy";
     return undef;
 
   } elsif($dev !~ m/@/ && $dev !~ m/:/) {
@@ -208,8 +237,7 @@ ZWDongle_Define($$)
   $hash->{nrNAck} = 0;
   my @empty;
   $hash->{SendStack} = \@empty;
-  
-  return undef if (IsDisabled($hash->{NAME}));
+  ZWDongle_shiftSendStack($hash, 5, undef);
   
   my $ret = DevIo_OpenDev($hash, 0, "ZWDongle_DoInit");
   return $ret;
@@ -217,7 +245,7 @@ ZWDongle_Define($$)
 
 #####################################
 sub
-ZWDongle_Undefine($$) 
+ZWDongle_Undef($$) 
 {
   my ($hash,$arg) = @_;
   DevIo_CloseDev($hash); 
@@ -240,11 +268,28 @@ ZWDongle_Set($@)
           push @r,($p ? "$_:".join(",",sort keys %{$p}) : $_)} sort keys %sets;
     return "Unknown argument $type, choose one of " . join(" ",@r);
   }
+
+  Log3 $hash, 4, "ZWDongle set $name $type ".join(" ",@a);
+  if($type eq "reopen") {
+    return if(AttrVal($name, "dummy",undef) || AttrVal($name, "disable",undef));
+    delete $hash->{NEXT_OPEN};
+    DevIo_CloseDev($hash);
+    sleep(1);
+    DevIo_OpenDev($hash, 0, "ZWDongle_DoInit");
+    return;
+  }
+
   my $cmd = $sets{$type}{cmd};
+  my $fb = substr($cmd, 0, 2);
+  if($fb =~ m/^[0-8A-F]+$/i &&
+     ReadingsVal($name, "caps","") !~ m/\b$zw_func_id{$fb}\b/) {
+    return "$type is unsupported by this controller";
+  }
+
   my $par = $sets{$type}{param};
   if($par && !$par->{noArg}) {
     return "Unknown argument for $type, choose one of ".join(" ",keys %{$par})
-      if(!defined($par->{$a[0]}));
+      if(!$a[0] || !defined($par->{$a[0]}));
     $a[0] = $par->{$a[0]};
   }
 
@@ -254,6 +299,14 @@ ZWDongle_Set($@)
     $hash->{CallbackNr} = $c;
     $c = sprintf("%02x", $c);
     $cmd =~ s/\@/$c/g;
+  }
+
+  if($type eq "addNode") {
+    if(@a == 2 && $a[1] =~ m/^sec/i) {
+      $hash->{addSecure} = pop(@a);
+    } else {
+      delete($hash->{addSecure});
+    }
   }
 
   my @ca = split("%", $cmd, -1);
@@ -279,15 +332,23 @@ ZWDongle_Get($@)
         join(" ", map { $gets{$_} =~ m/%/ ? $_ : "$_:noArg" } sort keys %gets)
         if(!defined($gets{$type}));
 
+  my $fb = substr($gets{$type}, 0, 2);
+  if($fb =~ m/^[0-8A-F]+$/i && $type ne "caps" &&
+     ReadingsVal($name, "caps","") !~ m/\b$zw_func_id{$fb}\b/) {
+    return "$type is unsupported by this controller";
+  }
+
+  Log3 $hash, 4, "ZWDongle get $name $type ".join(" ",@a);
   my @ga = split("%", $gets{$type}, -1);
   my $nargs = int(@ga)-1;
   return "get $name $type needs $nargs arguments" if($nargs != int(@a));
 
   return "No $type for dummies" if(IsDummy($name));
 
-  ZWDongle_Write($hash,  "00", sprintf($gets{$type}, @a));
-  my $re = "^01".substr($gets{$type},0,2);  # Start with <01><len><01><CMD>
-  my ($err, $ret) = ZWDongle_ReadAnswer($hash, "get $name $type", $re);
+  my $out = sprintf($gets{$type}, @a);
+  ZWDongle_Write($hash,  "00", $out);
+  my $re = "^01".substr($out,0,2);  # Start with <01><len><01><CMD>
+  my ($err, $ret) = ZWDongle_ReadAnswer($hash, $type, $re);
   return $err if($err);
 
   my $msg="";
@@ -314,7 +375,7 @@ ZWDongle_Get($@)
     for my $byte (0..31) {
       my $bits = $r[10+$byte];
       for my $bit (0..7) {
-        my $id = sprintf("%02x", $byte*8+$bit);
+        my $id = sprintf("%02x", $byte*8+$bit+1);
         push @list, ($zw_func_id{$id} ? $zw_func_id{$id} : "UNKNOWN_$id")
                 if($bits & (1<<$bit));
       }
@@ -325,6 +386,7 @@ ZWDongle_Get($@)
     $msg = sprintf("HomeId:%s CtrlNodeId:%s", 
                 substr($ret,4,8), substr($ret,12,2));
     $hash->{homeId} = substr($ret,4,8);
+    $attr{NAME}{homeId} = substr($ret,4,8);
 
   } elsif($type eq "version") {                 ############################
     $msg = join("",  map { chr($_) } @r[2..13]);
@@ -363,16 +425,12 @@ ZWDongle_Get($@)
       $msg = join(" ", @list);
     }
 
-  } elsif($type eq "neighborList") {            ############################
-    return "$name: Bogus data received" if(int(@r) != 31);
-    my @list;
-    for my $byte (0..28) {
-      my $bits = $r[2+$byte];
-      for my $bit (0..7) {
-        push @list, $byte*8+$bit+1 if($bits & (1<<$bit));
-      }
-    }
-    $msg = join(",", @list);
+  } elsif($type eq "random") {                  ############################
+    return "$name: Cannot generate" if($ret !~ m/^011c01(..)(.*)$/);
+    $msg = $2; @a = ();
+
+  } elsif($type eq "isFailedNode") {                  ############################
+    $msg = ($r[2]==1)?"yes":"no";
 
   }
 
@@ -390,12 +448,13 @@ ZWDongle_Clear($)
   my $hash = shift;
 
   # Clear the pipe
-  $hash->{RA_Timeout} = 0.3;
+  $hash->{RA_Timeout} = 1.0;
   for(;;) {
-    my ($err, undef) = ZWDongle_ReadAnswer($hash, "Clear", undef);
-    last if($err && $err =~ m/^Timeout/);
+    my ($err, undef) = ZWDongle_ReadAnswer($hash, "Clear", "wontmatch");
+    last if($err && ($err =~ m/^Timeout/ || $err =~ m/No FD/));
   }
   delete($hash->{RA_Timeout});
+  $hash->{PARTIAL} = "";
 }
 
 #####################################
@@ -406,11 +465,18 @@ ZWDongle_DoInit($)
   my $name = $hash->{NAME};
 
   DevIo_SetHwHandshake($hash) if($hash->{USBDev});
-  ZWDongle_Clear($hash);
-  ZWDongle_Get($hash, $name, "devList"); # Make the following query faster (?)
-  ZWDongle_Get($hash, $name, "homeId");
   $hash->{PARTIAL} = "";
-  $hash->{STATE} = "Initialized";
+  
+  ZWDongle_Clear($hash);
+  ZWDongle_Get($hash, $name, "caps");
+  ZWDongle_Get($hash, $name, "homeId");
+  ZWDongle_Get($hash, $name, ("random", 32));         # Sec relevant
+  ZWDongle_Set($hash, $name, ("timeouts", 100, 15));  # Sec relevant
+  ZWDongle_ReadAnswer($hash, "timeouts", "^0106");
+  # NODEINFO_LISTENING, Generic Static controller, Specific Static Controller, 0
+  ZWDongle_Set($hash, $name, ("setNIF", 1, 2, 1, 0)); # Sec relevant (?)
+
+  readingsSingleUpdate($hash, "state", "Initialized", 1);
   return undef;
 }
 
@@ -427,31 +493,76 @@ ZWDongle_CheckSum($)
 
 #####################################
 sub
-ZWDongle_Write($$$@)
+ZWDongle_Write($$$)
 {
-  my ($hash,$fn,$msg,$noStack) = @_;
+  my ($hash,$fn,$msg) = @_;
 
-  if(!$noStack && $msg =~ m/^13/) { # SEND_DATA, wait for ACK
-    InternalTimer(gettimeofday()+1, "ZWave_HandleSendStack", $hash, 0)
-      if(!int(@{$hash->{SendStack}}));
-    push @{$hash->{SendStack}}, $msg;
-    return if(int(@{$hash->{SendStack}}) > 1);
-  }
+  Log3 $hash, 5, "ZWDongle_Write $fn $msg";
+  # assemble complete message
   $msg = "$fn$msg";
   $msg = sprintf("%02x%s", length($msg)/2+1, $msg);
+
   $msg = "01$msg" . ZWDongle_CheckSum($msg);
-  DevIo_SimpleWrite($hash, $msg, 1);
+  push @{$hash->{SendStack}}, $msg;
+
+  ZWDongle_ProcessSendStack($hash);
 }
 
 sub
-ZWave_HandleSendStack($)
+ZWDongle_shiftSendStack($$$)
 {
-  my $hash = shift;
-  shift @{$hash->{SendStack}};
-  RemoveInternalTimer($hash);   # remove timer to avoid re-trigger
-  return if(!@{$hash->{SendStack}});
-  ZWDongle_Write($hash, "00", $hash->{SendStack}->[0], 1);
-  InternalTimer(gettimeofday()+1, "ZWave_HandleSendStack", $hash, 0);
+  my ($hash, $level, $txt) = @_;
+  my $ss = $hash->{SendStack};
+  my $cmd = shift @{$ss};
+  Log3 $hash, $level, "$txt, removing $cmd from dongle sendstack"
+        if($txt && $cmd);
+
+  $hash->{WaitForAck}=0;
+  $hash->{SendRetries}=0;
+  $hash->{MaxSendRetries}=3;
+}
+
+sub
+ZWDongle_ProcessSendStack($)
+{
+  my ($hash) = @_;
+    
+  #Log3 $hash, 1, "ZWDongle_ProcessSendStack: ".@{$hash->{SendStack}}.
+  #                      " items on stack, waitForAck ".$hash->{WaitForAck};
+  
+  RemoveInternalTimer($hash); 
+    
+  my $ts = gettimeofday();  
+
+  if($hash->{WaitForAck}){
+    if($ts-$hash->{SendTime} >= 1){
+      Log3 $hash, 2, "ZWDongle_ProcessSendStack: no ACK, resending message ".
+                      $hash->{SendStack}->[0];
+      $hash->{SendRetries}++;
+      $hash->{WaitForAck} = 0;
+
+    } else {
+      InternalTimer($ts+1, "ZWDongle_ProcessSendStack", $hash, 0);
+      return;
+
+    }
+  }
+
+  if($hash->{SendRetries} > $hash->{MaxSendRetries}){
+    ZWDongle_shiftSendStack($hash, 1, "ERROR: max send retries reached");
+  }
+  
+  return if(!@{$hash->{SendStack}} ||
+               $hash->{WaitForAck} ||
+               !DevIo_IsOpen($hash));
+  
+  my $msg = $hash->{SendStack}->[0];
+
+  DevIo_SimpleWrite($hash, $msg, 1);
+  $hash->{WaitForAck} = 1;
+  $hash->{SendTime} = $ts;
+
+  InternalTimer($ts+1, "ZWDongle_ProcessSendStack", $hash, 0);
 }
 
 #####################################
@@ -471,40 +582,50 @@ ZWDongle_Read($@)
   # buffer after a timeout is my only idea of solving this problem.
   my $ts   = gettimeofday();
   my $data = ($hash->{ReadTime} && $ts-$hash->{ReadTime} > 1) ?
-                        "" : $hash->{PARTIAL};
-  $hash->{ReadTime} = $ts;      # Flush old data.
+                        $buf : $hash->{PARTIAL}.$buf;
+  $hash->{ReadTime} = $ts;
 
 
-  Log3 $name, 5, "ZWDongle/RAW: $data/$buf";
-  $data .= $buf;
+  #Log3 $name, 5, "ZWDongle RAW buffer: $data";
+
   my $msg;
-
   while(length($data) > 0) {
+
     my $fb = substr($data, 0, 2);
 
     if($fb eq "06") {   # ACK
+      ZWDongle_shiftSendStack($hash, 5, "ACK received");
       $data = substr($data, 2);
       next;
     }
+
     if($fb eq "15") {   # NACK
-      Log3 $name, 1, "$name: NACK received";
-      undef @{$hash->{SendStack}};
+      Log3 $name, 4, "ZWDongle_Read $name: NACK received";
+      $hash->{WaitForAck} = 0;
+      $hash->{SendRetries}++;
       $data = substr($data, 2);
       next;
     }
+
     if($fb eq "18") {   # CAN
-      if(int(@{$hash->{SendStack}})) {
-        Log3 $name, 4, "$name: CANCEL received, retransmitting.";
-        ZWDongle_Write($hash, "00", $hash->{SendStack}->[0], 1);
-      } else {
-        Log3 $name, 4, "$name: CANCEL received, nothing to retransmit.";
-      }
+      Log3 $name, 4, "ZWDongle_Read $name: CAN received";
+      $hash->{MaxSendRetries}++ if($hash->{MaxSendRetries}<7);
       $data = substr($data, 2);
+      if(!$init_done) { # InternalTimer wont work
+        $hash->{WaitForAck} = 0;
+        $hash->{SendRetries}++;
+        select(undef, undef, undef, 0.1);
+      }
       next;
     }
+
     if($fb ne "01") {   # SOF
       Log3 $name, 1, "$name: SOF missing (got $fb instead of 01)";
-      undef @{$hash->{SendStack}};
+      if(++$hash->{nrNAck} < 5){
+        Log3 $name, 5, "ZWDongle_Read SOF Error -> sending NACK";
+        DevIo_SimpleWrite($hash, "15", 1);         # Send NACK
+      }
+      $data="";
       last;
     }
 
@@ -520,20 +641,31 @@ ZWDongle_Read($@)
     if($rcs ne $ccs) {
       Log3 $name, 1,
            "$name: wrong checksum: received $rcs, computed $ccs for $len$msg";
-      DevIo_SimpleWrite($hash, "15", 1)         # Send NACK
-        if(++$hash->{nrNAck} < 5);
+      if(++$hash->{nrNAck} < 5) {
+        Log3 $name, 5, "ZWDongle_Read wrong checksum -> sending NACK";
+        DevIo_SimpleWrite($hash, "15", 1);
+      }
+      $msg = undef;
+      $data="";
       next;
     }
     $hash->{nrNAck} = 0;
+    Log3 $name, 4, "ZWDongle_Read $name: sending ACK, processing $msg";
     DevIo_SimpleWrite($hash, "06", 1);          # Send ACK
-    Log3 $name, 5, "ZWDongle_Read $name: $msg";
     
     last if(defined($local) && (!defined($regexp) || ($msg =~ m/$regexp/)));
-    ZWDongle_Parse($hash, $name, $msg);
+    $hash->{PARTIAL} = $data;	 # Recursive call by ZWave get, Forum #37418
+    ZWDongle_Parse($hash, $name, $msg) if($init_done);
+
+    $data = $hash->{PARTIAL};
     $msg = undef;
   }
 
   $hash->{PARTIAL} = $data;
+  
+  # trigger sending of next message
+  ZWDongle_ProcessSendStack($hash) if(length($data) == 0);
+  
   return $msg if(defined($local));
   return undef;
 }
@@ -544,6 +676,7 @@ sub
 ZWDongle_ReadAnswer($$$)
 {
   my ($hash, $arg, $regexp) = @_;
+  Log3 $hash, 4, "ZWDongle_ReadAnswer arg:$arg regexp:".($regexp ? $regexp:"");
   return ("No FD (dummy device?)", undef)
         if(!$hash || ($^O !~ /Win/ && !defined($hash->{FD})));
   my $to = ($hash->{RA_Timeout} ? $hash->{RA_Timeout} : 3);
@@ -559,28 +692,40 @@ ZWDongle_ReadAnswer($$$)
         if(length($buf) == 0);
 
     } else {
-      return ("Device lost when reading answer for get $arg", undef)
-        if(!$hash->{FD});
+      if(!$hash->{FD}) {
+        Log3 $hash, 1, "ZWDongle_ReadAnswer: device lost";
+        return ("Device lost when reading answer for get $arg", undef);
+      }
+
       my $rin = '';
       vec($rin, $hash->{FD}, 1) = 1;
       my $nfound = select($rin, undef, undef, $to);
       if($nfound < 0) {
-        next if ($! == EAGAIN() || $! == EINTR() || $! == 0);
         my $err = $!;
+        Log3 $hash, 5, "ZWDongle_ReadAnswer: nfound < 0 / err:$err";
+        next if ($err == EAGAIN() || $err == EINTR() || $err == 0);
         DevIo_Disconnected($hash);
         return("ZWDongle_ReadAnswer $arg: $err", undef);
       }
-      return ("Timeout reading answer for get $arg", undef)
-        if($nfound == 0);
-      $buf = DevIo_SimpleRead($hash);
-      return ("No data", undef) if(!defined($buf));
 
+      if($nfound == 0){
+        Log3 $hash, 5, "ZWDongle_ReadAnswer: select timeout";
+        return ("Timeout reading answer for get $arg", undef);
+      }
+
+      $buf = DevIo_SimpleRead($hash);
+      if(!defined($buf)){
+        Log3 $hash, 1,"ZWDongle_ReadAnswer: no data read";
+        return ("No data", undef);
+      }
     }
 
     my $ret = ZWDongle_Read($hash, $buf, $regexp);
-    return (undef, $ret) if(defined($ret));
+    if(defined($ret)){
+      Log3 $hash, 4, "ZWDongle_ReadAnswer for $arg: $ret";
+      return (undef, $ret);
+    }
   }
-
 }
 
 sub
@@ -588,34 +733,49 @@ ZWDongle_Parse($$$)
 {
   my ($hash, $name, $rmsg) = @_;
 
+  if(!defined($hash->{STATE}) || $hash->{STATE} ne "Initialized"){
+    Log3 $hash, 4,"ZWDongle_Parse $rmsg: dongle not yet initialized";
+    return;
+  }
+
   $hash->{"${name}_MSGCNT"}++;
   $hash->{"${name}_TIME"} = TimeNow();
   $hash->{RAWMSG} = $rmsg;
 
   my %addvals = (RAWMSG => $rmsg);
+
   Dispatch($hash, $rmsg, \%addvals);
 }
 
 #####################################
-# Handles attribute changes
 sub
-ZWDongle_Attr($$$$) {
-  my ($command,$name,$attribute,$value) = @_;
+ZWDongle_Attr($$$$)
+{
+  my ($cmd, $name, $attr, $value) = @_;
   my $hash = $defs{$name};
   
-  # Handle "disable" attribute by opening/closing connection to device
-  if ($attribute eq "disable")
-  {
-    # Disable on 1, enable on anything else.
-    if ($value eq "1")
-    {
-      DevIo_CloseDev($hash);
+  if($attr eq "disable") {
+    if($cmd eq "set" && ($value || !defined($value))) {
+      DevIo_CloseDev($hash) if(!AttrVal($name,"dummy",undef));
       $hash->{STATE} = "disabled";
-    }
-    else
-    {
+
+    } else {
+      if(AttrVal($name,"dummy",undef)) {
+        $hash->{STATE} = "dummy";
+        return;
+      }
       DevIo_OpenDev($hash, 0, "ZWDongle_DoInit");
+
     }
+
+  } elsif($attr eq "homeId") {
+    $hash->{homeId} = $value;
+
+  } elsif($attr eq "networkKey" && $cmd eq "set") {
+    if(!$value || $value !~ m/^[0-9A-F]{32}$/i) {
+      return "attr $name networkKey: not a hex string with a length of 32";
+    }
+    return;
   }
 
   return undef;  
@@ -678,28 +838,40 @@ ZWDongle_Ready($)
   <b>Set</b>
   <ul>
 
-  <li>addNode [on|off]<br>
+  <li>addNode [nwOn|on|off] [sec]<br>
     Activate (or deactivate) inclusion mode. The controller (i.e. the dongle)
     will accept inclusion (i.e. pairing/learning) requests only while in this
     mode. After activating inclusion mode usually you have to press a switch
     three times within 1.5 seconds on the node to be included into the network
     of the controller. If autocreate is active, a fhem device will be created
-    after inclusion.</li>
+    after inclusion. "on" activates standard inclusion. "nwOn" activates network
+    wide inclusion (only SDK 4.5-4.9, SDK 6.x and above).<br>
+    If sec is specified, the ZWDongle networkKey ist set, and the device
+    supports the SECURITY class, then a secure inclusion is attempted.
+    </li>
 
-  <li>removeNode [on|off]<br>
-    Activate (or deactivate) exclusion mode. Note: the corresponding fhem
-    device have to be deleted manually.</li>
+  <li>removeNode [nwOn|on|off]<br>
+    Activate (or deactivate) exclusion mode. "on" activates standard exclusion. 
+    "nwOn" activates network wide exclusion (only SDK 4.5-4.9, SDK 6.x and above). 
+    Note: the corresponding fhem device have to be deleted manually.</li>
 
   <li>createNode id<br>
     Request the class information for the specified node, and create a fhem
     device upon reception of the answer. Used for previously included nodes,
     see the nodeList get command below.</li>
 
-  <li>neighborUpdate<br>
-    Requests controller to update his routing table which is based on
-    slave's neighbor list. The update may take significant time to complete.
-    With the event "done" or "failed" ZWDongle will notify the end of the update process.
-    To read node's neighbor list see neighborList get below.</li>
+  <li>removeFailedNode<br>
+    Remove a non-responding node -that must be on the failed Node list- from 
+    the routing table in controller. Instead,always use removeNode if possible.
+    Note: the corresponding fhem device have to be deleted manually.</li>
+
+  <li>replaceFailedNode<br>
+    Replace a non-responding node with a new one. The non-responding node
+    must be on the failed Node list.</li>
+
+  <li>reopen<br>
+    First close and then open the device. Used for debugging purposes.
+    </li>
 
   </ul>
   <br>
@@ -714,6 +886,9 @@ ZWDongle_Ready($)
   <li>homeId<br>
     return the six hex-digit homeId of the controller.</li>
 
+  <li>isFailedNode<br>
+    return if a node is stored in the failed node List.</li>
+
   <li>caps, ctrlCaps, version<br>
     return different controller specific information. Needed by developers
     only.  </li>
@@ -721,10 +896,9 @@ ZWDongle_Ready($)
   <li>nodeInfo<br>
     return node specific information. Needed by developers only.</li>
 
-  <li>neighborList id<br>
-    returns the list of neighbor nodeIds of specified node.
-    Provides insights to actual network topology.
-    List includes dead links and non-routing neighbors</li>
+  <li>random N<br>
+    request N random bytes from the controller.
+    </li>
 
   <li>raw<br>
     Send raw data to the controller. Developer only.</li>
@@ -738,6 +912,16 @@ ZWDongle_Ready($)
     <li><a href="#do_not_notify">do_not_notify</a></li>
     <li><a href="#model">model</a></li>
     <li><a href="#disable">disable</a></li>
+    <li><a href="#homeId">homeId</a><br>
+      Stores the homeId of the dongle. Is a workaround for some buggy dongles,
+      wich sometimes report a wrong/nonexisten homeId (Forum #35126)</li>
+    <li><a href="#networkKey">networkKey</a><br>
+      Needed for secure inclusion, hex string with length of 32
+      </li>
+    <li><a href="#delayNeeded">delayNeeded</a><br>
+      If set to 0, no delay is needed between sending consecutive commands to
+      the same receiver. Default is 1 (delay is needed).
+      </li>
   </ul>
   <br>
 
@@ -746,7 +930,19 @@ ZWDongle_Ready($)
   <ul>
   <li>ZW_ADD_NODE_TO_NETWORK [learnReady|nodeFound|controller|done|failed]
     </li>
-  <li>ZW_REMOVE_NODE_TO_NETWORK [learnReady|nodeFound|slave|controller|done|failed]
+  <li>ZW_REMOVE_FAILED_NODE_ID 
+           [failedNodeRemoveStarted|notPrimaryController|noCallbackFunction|
+            failedNodeNotFound|failedNodeRemoveProcessBusy|
+            failedNodeRemoveFail|nodeOk|nodeRemoved|nodeNotRemoved]
+    </li>
+  <li>ZW_REMOVE_NODE_FROM_NETWORK 
+                        [learnReady|nodeFound|slave|controller|done|failed]
+    </li>
+  <li>ZW_REPLACE_FAILED_NODE 
+           [failedNodeRemoveStarted|notPrimaryController|noCallbackFunction|
+            failedNodeNotFound|failedNodeRemoveProcessBusy|
+            failedNodeRemoveFail|nodeOk|failedNodeReplace|
+            failedNodeReplaceDone|failedNodeRemoveFailed]
     </li>
   <li>UNDEFINED ZWave_${type6}_$id ZWave $homeId $id $classes"
     </li>
